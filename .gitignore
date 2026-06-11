@@ -45,6 +45,7 @@ app.*.map.json
 
 # Local environment and private API keys
 .env
+SECRETS_AND_SETUP.md
 *.db
 /*.json
 !/package.json

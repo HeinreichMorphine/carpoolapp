@@ -7,11 +7,12 @@ import 'screens/home_screen.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
-  // Initialize self-hosted Supabase client
-  // Kong API gateway handles routing on localhost port 8000
   await Supabase.initialize(
-    url: 'http://localhost:8000',
-    anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYW5vbiIsImlzcyI6InN1cGFiYXNlIiwiaWF0IjoxNzgxMTU2MzU4LCJleHAiOjIwOTY1MTk5NTh9.NG09cBenuQ6omR9yXqHYfG39PEqPr3eY-h2yhvkxnHg',
+    url: 'https://zwhyrnhhazjsciyyeijc.supabase.co',
+    publishableKey: 'sb_publishable_ud5v1EnN4a-7FSSRrgHefg_A1EwCyrr',
+    authOptions: const FlutterAuthClientOptions(
+      authFlowType: AuthFlowType.pkce,
+    ),
   );
 
   runApp(const MyApp());
@@ -23,7 +24,7 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Carpool Malaysia',
+      title: 'JomRide',
       theme: AppTheme.lightTheme,
       debugShowCheckedModeBanner: false,
       home: const AuthRedirectHandler(),

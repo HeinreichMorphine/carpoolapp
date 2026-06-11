@@ -3,6 +3,72 @@ create extension if not exists postgis schema public;
 create extension if not exists "uuid-ossp" schema public;
 
 -- --------------------------------------------------
+-- Create Required Supabase Roles
+-- --------------------------------------------------
+
+-- 'anon' role: used by PostgREST for unauthenticated requests
+do $$
+begin
+  if not exists (select 1 from pg_roles where rolname = 'anon') then
+    create role anon nologin noinherit;
+  end if;
+end $$;
+
+-- 'authenticator' role: PostgREST connects as this role and switches to anon/authenticated
+do $$
+begin
+  if not exists (select 1 from pg_roles where rolname = 'authenticator') then
+    create role authenticator noinherit login password 'postgres-carpool-secure-pass';
+  end if;
+end $$;
+
+-- 'authenticated' role: used by PostgREST for authenticated requests
+do $$
+begin
+  if not exists (select 1 from pg_roles where rolname = 'authenticated') then
+    create role authenticated nologin noinherit;
+  end if;
+end $$;
+
+-- 'service_role' role: bypasses RLS for server-side operations
+do $$
+begin
+  if not exists (select 1 from pg_roles where rolname = 'service_role') then
+    create role service_role nologin noinherit bypassrls;
+  end if;
+end $$;
+
+-- 'supabase_auth_admin' role: used by GoTrue for auth schema management
+do $$
+begin
+  if not exists (select 1 from pg_roles where rolname = 'supabase_auth_admin') then
+    create role supabase_auth_admin noinherit login password 'postgres-carpool-secure-pass';
+  end if;
+end $$;
+
+-- Grant role switching to authenticator
+grant anon to authenticator;
+grant authenticated to authenticator;
+grant service_role to authenticator;
+
+-- Grant schema usage
+grant usage on schema public to anon, authenticated, service_role;
+grant all on all tables in schema public to anon, authenticated, service_role;
+grant all on all sequences in schema public to anon, authenticated, service_role;
+grant all on all routines in schema public to anon, authenticated, service_role;
+
+-- Default privileges for future tables
+alter default privileges in schema public grant all on tables to anon, authenticated, service_role;
+alter default privileges in schema public grant all on sequences to anon, authenticated, service_role;
+alter default privileges in schema public grant all on routines to anon, authenticated, service_role;
+
+-- Auth schema permissions for GoTrue
+grant all on schema auth to supabase_auth_admin;
+grant all on all tables in schema auth to supabase_auth_admin;
+grant all on all sequences in schema auth to supabase_auth_admin;
+grant all on all routines in schema auth to supabase_auth_admin;
+
+-- --------------------------------------------------
 -- Create Tables
 -- --------------------------------------------------
 

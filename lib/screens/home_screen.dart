@@ -521,7 +521,7 @@ class _HomeScreenState extends State<HomeScreen> {
     return Scaffold(
       appBar: AppBar(
         title: Text(
-          isDriver ? 'Driver Dashboard' : 'Carpool Malaysia',
+          isDriver ? 'Driver Dashboard' : 'JomRide',
           style: const TextStyle(fontWeight: FontWeight.bold, color: AppTheme.ink),
         ),
         backgroundColor: AppTheme.canvas,
@@ -550,7 +550,7 @@ class _HomeScreenState extends State<HomeScreen> {
             children: [
               TileLayer(
                 urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                userAgentPackageName: 'com.carpool.malaysia',
+                userAgentPackageName: 'com.jomride.app',
               ),
               // Draw OSRM route lines
               if (_polylinePoints.isNotEmpty)

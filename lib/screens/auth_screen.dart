@@ -80,6 +80,33 @@ class _AuthScreenState extends State<AuthScreen> {
     }
   }
 
+  static const _oauthRedirectUrl = 'jomride://login-callback';
+
+  Future<void> _handleGoogleAuth() async {
+    setState(() => _loading = true);
+
+    try {
+      await _supabase.auth.signInWithOAuth(
+        OAuthProvider.google,
+        redirectTo: _oauthRedirectUrl,
+      );
+    } on AuthException catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(e.message), backgroundColor: Colors.red),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Google sign-in failed: $e'), backgroundColor: Colors.red),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
   Future<void> _handlePhoneAuthSend() async {
     if (_phoneController.text.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -166,7 +193,7 @@ class _AuthScreenState extends State<AuthScreen> {
               ),
               const SizedBox(height: 8),
               Text(
-                _phoneAuthMode ? 'Verify your phone number' : (_isSignUp ? 'Create your carpooling account' : 'Sign in to your account'),
+                _phoneAuthMode ? 'Verify your phone number' : (_isSignUp ? 'Create your JomRide account' : 'Sign in to your account'),
                 style: const TextStyle(
                   fontFamily: 'Inter',
                   fontSize: 16,
@@ -295,6 +322,39 @@ class _AuthScreenState extends State<AuthScreen> {
                       ),
                     ),
                     const SizedBox(height: 16),
+
+                    if (!_phoneAuthMode) ...[
+                      Row(
+                        children: [
+                          const Expanded(child: Divider(color: AppTheme.mute)),
+                          const Padding(
+                            padding: EdgeInsets.symmetric(horizontal: 16),
+                            child: Text('or', style: TextStyle(color: AppTheme.body)),
+                          ),
+                          const Expanded(child: Divider(color: AppTheme.mute)),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                      SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton.icon(
+                          onPressed: _loading ? null : _handleGoogleAuth,
+                          icon: const Icon(Icons.g_mobiledata, size: 28, color: AppTheme.ink),
+                          label: const Text(
+                            'Continue with Google',
+                            style: TextStyle(color: AppTheme.ink, fontWeight: FontWeight.w500),
+                          ),
+                          style: OutlinedButton.styleFrom(
+                            side: const BorderSide(color: AppTheme.hairlineMid, width: 1.5),
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(AppTheme.radiusPill),
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                    ],
 
                     // Toggle mode button
                     if (!_phoneAuthMode)

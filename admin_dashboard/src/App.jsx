@@ -135,7 +135,7 @@ function AdminDashboard() {
       {/* Sidebar */}
       <aside className="w-64 bg-black text-white flex flex-col justify-between p-6">
         <div>
-          <div className="text-xl font-bold tracking-tight mb-8">CARPOOL ADMIN</div>
+          <div className="text-xl font-bold tracking-tight mb-8">JOMRIDE ADMIN</div>
           <nav className="space-y-2">
             <button
               onClick={() => setActiveTab('map')}
@@ -501,7 +501,7 @@ function PublicLiveTrack() {
           </div>
 
           <div className="text-xs text-center text-gray-400">
-            Powered by Carpool Malaysia. Shared via private tracking link.
+            Powered by JomRide. Shared via private tracking link.
           </div>
         </div>
       </div>
