@@ -1,9 +1,12 @@
 import 'dart:async';
+import 'dart:convert';
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:http/http.dart' as http;
 import '../services/app_theme.dart';
 import 'chat_screen.dart';
 import 'wallet_screen.dart';
@@ -19,9 +22,29 @@ class _HomeScreenState extends State<HomeScreen> {
   final _supabase = Supabase.instance.client;
   final MapController _mapController = MapController();
 
+  static const String adminTrackUrl = 'http://localhost:8080';
+
   // User Profile
   Map<String, dynamic>? _profile;
   bool _loadingProfile = true;
+
+  // Selected Locations Coordinates and Addresses
+  LatLng? _pickupLatLng;
+  LatLng? _dropLatLng;
+  String? _pickupAddress;
+  String? _dropAddress;
+
+  // Text Editing Controllers for Search Inputs
+  final TextEditingController _pickupController = TextEditingController();
+  final TextEditingController _dropController = TextEditingController();
+
+  // Map Selection mode: null, 'pickup', 'drop'
+  String? _mapSelectMode;
+
+  // Nominatim Search variables
+  List<Map<String, dynamic>> _searchResults = [];
+  bool _searchingAddress = false;
+  String? _activeSearchField; // 'pickup' or 'drop'
 
   // Malaysia boundaries
   final LatLngBounds _malaysiaBounds = LatLngBounds(
@@ -39,8 +62,6 @@ class _HomeScreenState extends State<HomeScreen> {
   };
 
   // State Variables
-  String? _selectedPickup;
-  String? _selectedDrop;
   bool _womenOnly = false;
   final String _corporateEmailDomain = "";
   
@@ -70,6 +91,8 @@ class _HomeScreenState extends State<HomeScreen> {
     if (_rideSubscription != null) {
       _supabase.removeChannel(_rideSubscription!);
     }
+    _pickupController.dispose();
+    _dropController.dispose();
     super.dispose();
   }
 
@@ -108,14 +131,15 @@ class _HomeScreenState extends State<HomeScreen> {
   // --------------------------------------------------
 
   Future<void> _calculateRoute() async {
-    if (_selectedPickup == null || _selectedDrop == null) return;
+    if (_pickupLatLng == null || _dropLatLng == null) return;
     setState(() {
       _calculatingRoute = true;
       _polylinePoints = [];
+      _routeEstimate = null;
     });
 
-    final pLoc = _mockLocations[_selectedPickup]!;
-    final dLoc = _mockLocations[_selectedDrop]!;
+    final pLoc = _pickupLatLng!;
+    final dLoc = _dropLatLng!;
 
     try {
       // Call our calculate-fare Edge Function
@@ -130,7 +154,13 @@ class _HomeScreenState extends State<HomeScreen> {
       if (response.status == 200 && resData != null) {
         setState(() {
           _routeEstimate = resData;
-          _polylinePoints = _decodePolyline(resData['polyline']);
+          final polyStr = resData['polyline'] as String?;
+          if (polyStr != null && polyStr.isNotEmpty) {
+            _polylinePoints = _decodePolyline(polyStr);
+          } else {
+            // Fallback: Draw straight line between pickup and destination
+            _polylinePoints = [pLoc, dLoc];
+          }
         });
 
         // Fit map bounds
@@ -142,9 +172,39 @@ class _HomeScreenState extends State<HomeScreen> {
         throw Exception(resData['error'] ?? 'Route calculation failed');
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
-      );
+      debugPrint('Routing Edge Function failed: $e. Using local straight-line distance fallback.');
+      
+      // Local Haversine calculation fallback
+      final R = 6371; // Earth radius in km
+      final dLat = (dLoc.latitude - pLoc.latitude) * math.pi / 180;
+      final dLon = (dLoc.longitude - pLoc.longitude) * math.pi / 180;
+      final a = math.sin(dLat / 2) * math.sin(dLat / 2) +
+                math.cos(pLoc.latitude * math.pi / 180) * math.cos(dLoc.latitude * math.pi / 180) *
+                math.sin(dLon / 2) * math.sin(dLon / 2);
+      final c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a));
+      final distanceKm = R * c;
+      final durationMins = distanceKm * 1.5; // Estimate 1.5 mins per km
+
+      final baseFare = 5.00;
+      final distanceFare = distanceKm * 1.20;
+      final timeFare = durationMins * 0.30;
+      final totalFare = (baseFare + distanceFare + timeFare) < 5.00 ? 5.00 : (baseFare + distanceFare + timeFare);
+
+      setState(() {
+        _routeEstimate = {
+          'distance_km': double.parse(distanceKm.toStringAsFixed(2)),
+          'duration_mins': double.parse(durationMins.toStringAsFixed(1)),
+          'fare': double.parse(totalFare.toStringAsFixed(2)),
+          'polyline': '',
+        };
+        _polylinePoints = [pLoc, dLoc];
+      });
+
+      // Fit map bounds
+      _mapController.fitCamera(CameraFit.bounds(
+        bounds: LatLngBounds(pLoc, dLoc),
+        padding: const EdgeInsets.all(50),
+      ));
     } finally {
       setState(() => _calculatingRoute = false);
     }
@@ -181,12 +241,101 @@ class _HomeScreenState extends State<HomeScreen> {
     return points;
   }
 
+  // Nominatim Address Search
+  Future<void> _searchForAddress(String query, String field) async {
+    if (query.trim().isEmpty) return;
+    setState(() {
+      _searchingAddress = true;
+      _activeSearchField = field;
+      _searchResults = [];
+    });
+
+    try {
+      final response = await http.get(
+        Uri.parse('https://nominatim.openstreetmap.org/search?format=json&q=${Uri.encodeComponent(query)}&countrycodes=my&limit=5'),
+        headers: {'User-Agent': 'JomRide_Carpool_App_Melaka'},
+      ).timeout(const Duration(seconds: 5));
+
+      if (response.statusCode == 200) {
+        final List data = json.decode(response.body);
+        setState(() {
+          _searchResults = data.map<Map<String, dynamic>>((item) {
+            return {
+              'display_name': item['display_name'] ?? '',
+              'lat': double.parse(item['lat'] ?? '0.0'),
+              'lon': double.parse(item['lon'] ?? '0.0'),
+            };
+          }).toList();
+        });
+      }
+    } catch (e) {
+      debugPrint('Geocoding search error: $e');
+    } finally {
+      setState(() => _searchingAddress = false);
+    }
+  }
+
+  // Nominatim Reverse Geocoding
+  Future<String> _reverseGeocode(LatLng point) async {
+    try {
+      final response = await http.get(
+        Uri.parse('https://nominatim.openstreetmap.org/reverse?format=json&lat=${point.latitude}&lon=${point.longitude}&zoom=16'),
+        headers: {'User-Agent': 'JomRide_Carpool_App_Melaka'},
+      ).timeout(const Duration(seconds: 5));
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        final displayName = data['display_name'] as String?;
+        if (displayName != null) {
+          final parts = displayName.split(',');
+          if (parts.length > 3) {
+            return parts.sublist(0, 3).join(',').trim();
+          }
+          return displayName;
+        }
+      }
+    } catch (e) {
+      debugPrint('Reverse geocoding error: $e');
+    }
+    return '${point.latitude.toStringAsFixed(4)}, ${point.longitude.toStringAsFixed(4)}';
+  }
+
+  // Handle map tap events
+  Future<void> _handleMapTap(TapPosition tapPosition, LatLng point) async {
+    if (_mapSelectMode == null) return;
+    
+    final mode = _mapSelectMode;
+    setState(() {
+      _mapSelectMode = null;
+    });
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Retrieving address...'), duration: Duration(milliseconds: 1500)),
+    );
+
+    final address = await _reverseGeocode(point);
+
+    setState(() {
+      if (mode == 'pickup') {
+        _pickupLatLng = point;
+        _pickupAddress = address;
+        _pickupController.text = address;
+      } else if (mode == 'drop') {
+        _dropLatLng = point;
+        _dropAddress = address;
+        _dropController.text = address;
+      }
+    });
+
+    _calculateRoute();
+  }
+
   Future<void> _requestRide() async {
-    if (_routeEstimate == null) return;
+    if (_routeEstimate == null || _pickupLatLng == null || _dropLatLng == null) return;
     setState(() => _calculatingRoute = true);
 
-    final pLoc = _mockLocations[_selectedPickup]!;
-    final dLoc = _mockLocations[_selectedDrop]!;
+    final pLoc = _pickupLatLng!;
+    final dLoc = _dropLatLng!;
 
     try {
       final userId = _supabase.auth.currentUser?.id;
@@ -196,10 +345,10 @@ class _HomeScreenState extends State<HomeScreen> {
         'status': 'requested',
         'pickup_latitude': pLoc.latitude,
         'pickup_longitude': pLoc.longitude,
-        'pickup_address': _selectedPickup,
+        'pickup_address': _pickupAddress ?? 'Custom Pickup Location',
         'drop_latitude': dLoc.latitude,
         'drop_longitude': dLoc.longitude,
-        'drop_address': _selectedDrop,
+        'drop_address': _dropAddress ?? 'Custom Destination',
         'distance_km': _routeEstimate!['distance_km'],
         'duration_mins': _routeEstimate!['duration_mins'],
         'fare': _routeEstimate!['fare'],
@@ -222,11 +371,13 @@ class _HomeScreenState extends State<HomeScreen> {
       if (matchRes.status == 200 && matchRes.data['success'] == true) {
         _subscribeToRideUpdates(rideRes['id']);
       } else {
+        if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('No drivers nearby. Retrying search...')),
         );
       }
     } catch (e) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Booking error: $e'), backgroundColor: Colors.red),
       );
@@ -310,7 +461,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   void _triggerSOS() async {
     if (_activeRide == null) return;
-    final pLoc = _mockLocations[_selectedPickup] ?? const LatLng(2.19, 102.25);
+    final pLoc = _pickupLatLng ?? const LatLng(2.19, 102.25);
     
     // Call Telegram notify with special SOS format
     await _supabase.functions.invoke('telegram-notify', body: {
@@ -440,6 +591,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
       _loadUserProfile(); // Reload profile & active ride state
     } catch (e) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Failed to update trip: $e'), backgroundColor: Colors.red),
       );
@@ -546,6 +698,7 @@ class _HomeScreenState extends State<HomeScreen> {
               initialCenter: const LatLng(2.1944, 102.2492), // Center in Melaka
               initialZoom: 14.0,
               cameraConstraint: CameraConstraint.contain(bounds: _malaysiaBounds),
+              onTap: _handleMapTap,
             ),
             children: [
               TileLayer(
@@ -566,14 +719,14 @@ class _HomeScreenState extends State<HomeScreen> {
               // Marker Layer (Pickup, Drop, Driver Location)
               MarkerLayer(
                 markers: [
-                  if (_selectedPickup != null && _mockLocations[_selectedPickup] != null)
+                  if (_pickupLatLng != null)
                     Marker(
-                      point: _mockLocations[_selectedPickup]!,
+                      point: _pickupLatLng!,
                       child: const Icon(Icons.location_on, color: Colors.green, size: 36),
                     ),
-                  if (_selectedDrop != null && _mockLocations[_selectedDrop] != null)
+                  if (_dropLatLng != null)
                     Marker(
-                      point: _mockLocations[_selectedDrop]!,
+                      point: _dropLatLng!,
                       child: const Icon(Icons.flag, color: Colors.red, size: 36),
                     ),
                   if (_driverLocation != null)
@@ -585,6 +738,43 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ],
           ),
+
+          // Floating Selection Instruction Banner
+          if (_mapSelectMode != null)
+            Positioned(
+              top: 16,
+              left: 16,
+              right: 16,
+              child: Card(
+                color: AppTheme.ink,
+                elevation: 6,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppTheme.radiusMd)),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  child: Row(
+                    children: [
+                      Icon(
+                        _mapSelectMode == 'pickup' ? Icons.location_on : Icons.flag,
+                        color: _mapSelectMode == 'pickup' ? Colors.green : Colors.red,
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          _mapSelectMode == 'pickup'
+                              ? 'Tap on the map to set Pickup Location'
+                              : 'Tap on the map to set Destination',
+                          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.close, color: Colors.white),
+                        onPressed: () => setState(() => _mapSelectMode = null),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
 
           // Bottom Sheet Interface
           Align(
@@ -642,7 +832,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 Expanded(
                   child: ElevatedButton(
                     onPressed: () {
-                      final url = 'http://localhost:8080/track/${_activeRide!['id']}';
+                      final url = '$adminTrackUrl/track/${_activeRide!['id']}';
                       launchUrl(Uri.parse(url));
                     },
                     style: ElevatedButton.styleFrom(backgroundColor: AppTheme.canvasSoft, foregroundColor: AppTheme.ink),
@@ -668,32 +858,158 @@ class _HomeScreenState extends State<HomeScreen> {
             'Request a Ride',
             style: TextStyle(fontFamily: 'Inter', fontSize: 22, fontWeight: FontWeight.bold, color: AppTheme.ink),
           ),
-          const SizedBox(height: 16),
-          // Pickup Selector
-          DropdownButtonFormField<String>(
-            initialValue: _selectedPickup,
-            hint: const Text('Select Pickup Location'),
-            items: _mockLocations.keys.map((name) {
-              return DropdownMenuItem(value: name, child: Text(name));
-            }).toList(),
-            onChanged: (val) {
-              setState(() => _selectedPickup = val);
-              _calculateRoute();
-            },
+          const SizedBox(height: 12),
+          
+          // Presets (Quick Chips)
+          const Text(
+            'Quick Presets:',
+            style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey),
+          ),
+          const SizedBox(height: 6),
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: _mockLocations.entries.map((entry) {
+                return Padding(
+                  padding: const EdgeInsets.only(right: 8.0),
+                  child: ActionChip(
+                    backgroundColor: AppTheme.canvasSoft,
+                    side: const BorderSide(color: AppTheme.canvasSoft),
+                    label: Text(entry.key.split(' ').first), // Short label
+                    onPressed: () {
+                      setState(() {
+                        if (_pickupLatLng == null || _mapSelectMode == 'pickup') {
+                          _pickupLatLng = entry.value;
+                          _pickupAddress = entry.key;
+                          _pickupController.text = entry.key;
+                          _mapSelectMode = null;
+                        } else {
+                          _dropLatLng = entry.value;
+                          _dropAddress = entry.key;
+                          _dropController.text = entry.key;
+                          _mapSelectMode = null;
+                        }
+                      });
+                      _calculateRoute();
+                    },
+                  ),
+                );
+              }).toList(),
+            ),
           ),
           const SizedBox(height: 12),
-          // Dropoff Selector
-          DropdownButtonFormField<String>(
-            initialValue: _selectedDrop,
-            hint: const Text('Select Destination'),
-            items: _mockLocations.keys.map((name) {
-              return DropdownMenuItem(value: name, child: Text(name));
-            }).toList(),
-            onChanged: (val) {
-              setState(() => _selectedDrop = val);
-              _calculateRoute();
-            },
+
+          // Pickup Field
+          TextField(
+            controller: _pickupController,
+            decoration: InputDecoration(
+              labelText: 'Pickup Location',
+              hintText: 'Search address or tap map...',
+              prefixIcon: const Icon(Icons.location_on, color: Colors.green),
+              suffixIcon: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.map, color: Colors.grey),
+                    tooltip: 'Choose on Map',
+                    onPressed: () {
+                      setState(() {
+                        _mapSelectMode = 'pickup';
+                      });
+                    },
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.search, color: AppTheme.primary),
+                    onPressed: () => _searchForAddress(_pickupController.text, 'pickup'),
+                  ),
+                ],
+              ),
+            ),
+            onSubmitted: (val) => _searchForAddress(val, 'pickup'),
           ),
+          const SizedBox(height: 12),
+
+          // Dropoff Field
+          TextField(
+            controller: _dropController,
+            decoration: InputDecoration(
+              labelText: 'Destination',
+              hintText: 'Search address or tap map...',
+              prefixIcon: const Icon(Icons.flag, color: Colors.red),
+              suffixIcon: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.map, color: Colors.grey),
+                    tooltip: 'Choose on Map',
+                    onPressed: () {
+                      setState(() {
+                        _mapSelectMode = 'drop';
+                      });
+                    },
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.search, color: AppTheme.primary),
+                    onPressed: () => _searchForAddress(_dropController.text, 'drop'),
+                  ),
+                ],
+              ),
+            ),
+            onSubmitted: (val) => _searchForAddress(val, 'drop'),
+          ),
+
+          // Search Results View
+          if (_searchingAddress)
+            const Center(
+              child: Padding(
+                padding: EdgeInsets.symmetric(vertical: 12.0),
+                child: CircularProgressIndicator(color: AppTheme.primary),
+              ),
+            )
+          else if (_searchResults.isNotEmpty)
+            Container(
+              constraints: const BoxConstraints(maxHeight: 180),
+              margin: const EdgeInsets.only(top: 8),
+              decoration: BoxDecoration(
+                color: AppTheme.canvasSoft,
+                borderRadius: BorderRadius.circular(AppTheme.radiusMd),
+                border: Border.all(color: AppTheme.canvasSoft),
+              ),
+              child: ListView.builder(
+                shrinkWrap: true,
+                itemCount: _searchResults.length,
+                itemBuilder: (context, idx) {
+                  final item = _searchResults[idx];
+                  return ListTile(
+                    dense: true,
+                    title: Text(
+                      item['display_name'],
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontSize: 13),
+                    ),
+                    trailing: const Icon(Icons.arrow_forward_ios, size: 12),
+                    onTap: () {
+                      setState(() {
+                        final latLng = LatLng(item['lat'], item['lon']);
+                        if (_activeSearchField == 'pickup') {
+                          _pickupLatLng = latLng;
+                          _pickupAddress = item['display_name'];
+                          _pickupController.text = item['display_name'];
+                        } else {
+                          _dropLatLng = latLng;
+                          _dropAddress = item['display_name'];
+                          _dropController.text = item['display_name'];
+                        }
+                        _searchResults = [];
+                      });
+                      _calculateRoute();
+                    },
+                  );
+                },
+              ),
+            ),
+
           const SizedBox(height: 16),
           // Preferences
           Row(

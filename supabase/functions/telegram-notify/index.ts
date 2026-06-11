@@ -36,7 +36,8 @@ serve(async (req) => {
 
     if (status === "sos") {
       const { rider_name, latitude, longitude } = details;
-      const trackLink = `http://localhost:8080/track/${ride_id}`;
+      const adminTrackUrl = Deno.env.get("ADMIN_TRACK_URL") ?? "http://localhost:8080";
+      const trackLink = `${adminTrackUrl}/track/${ride_id}`;
       messageText = `🚨 *SOS EMERGENCY ALERT* 🚨\n\n*Rider*: ${rider_name}\n*Location*: lat ${latitude}, lng ${longitude}\n\n[Track Live Trip in Browser](${trackLink})`;
     } else {
       // 1. Fetch ride details

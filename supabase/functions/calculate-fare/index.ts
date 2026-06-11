@@ -42,8 +42,9 @@ serve(async (req) => {
       );
     }
 
-    // Call OSRM inside docker network
-    const osrmUrl = `http://osrm:5000/route/v1/driving/${pickup_lng},${pickup_lat};${drop_lng},${drop_lat}?overview=full&geometries=polyline`;
+    // Call OSRM (using OSRM_URL env var or public project-osrm router)
+    const osrmBaseUrl = Deno.env.get("OSRM_URL") ?? "https://router.project-osrm.org";
+    const osrmUrl = `${osrmBaseUrl}/route/v1/driving/${pickup_lng},${pickup_lat};${drop_lng},${drop_lat}?overview=full&geometries=polyline`;
     
     let distanceKm = 0;
     let durationMins = 0;

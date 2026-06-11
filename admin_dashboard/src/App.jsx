@@ -22,8 +22,8 @@ const carIcon = new L.Icon({
 });
 
 // Initialize Supabase Client
-const supabaseUrl = 'http://localhost:8000';
-const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYW5vbiIsImlzcyI6InN1cGFiYXNlIiwiaWF0IjoxNzgxMTU2MzU4LCJleHAiOjIwOTY1MTk5NTh9.NG09cBenuQ6omR9yXqHYfG39PEqPr3eY-h2yhvkxnHg';
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://zwhyrnhhazjsciyyeijc.supabase.co';
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || 'sb_publishable_ud5v1EnN4a-7FSSRrgHefg_A1EwCyrr';
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 // Custom helper to adjust map bounds dynamically
