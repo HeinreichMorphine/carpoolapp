@@ -7,7 +7,7 @@ services:
       - name: auth-route
         paths:
           - /auth/v1
-        strip_path: false
+        strip_path: true
 
   - name: rest
     url: http://rest:3000
