@@ -55,6 +55,9 @@ SECRETS_AND_SETUP.md
 /osrm-data/*.osrm*
 /osrm-data/lib/
 
+# Supabase CLI temp files
+supabase/.temp/
+
 # Dependency folders
 **/node_modules/
 .idea/

@@ -41,8 +41,7 @@ class _AuthScreenState extends State<AuthScreen> {
 
     try {
       if (_isSignUp) {
-        // Sign up with name and role in metadata
-        await _supabase.auth.signUp(
+        final response = await _supabase.auth.signUp(
           email: _emailController.text.trim(),
           password: _passwordController.text.trim(),
           data: {
@@ -51,10 +50,20 @@ class _AuthScreenState extends State<AuthScreen> {
           },
         );
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Registration successful! Please log in.')),
-          );
-          setState(() => _isSignUp = false);
+          if (response.session != null) {
+            // Session is active — AuthRedirectHandler will navigate to HomeScreen
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Welcome to JomRide!')),
+            );
+          } else {
+            // Email confirmation is required in Supabase dashboard
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Account created! Check your email to confirm, then log in.'),
+              ),
+            );
+            setState(() => _isSignUp = false);
+          }
         }
       } else {
         // Sign In
