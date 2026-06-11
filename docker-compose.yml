@@ -1,0 +1,121 @@
+version: '3.8'
+
+services:
+  db:
+    image: supabase/postgres:15.1.1.78
+    container_name: carpool-db
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      JWT_SECRET: ${JWT_SECRET}
+    volumes:
+      - carpool-db-data:/var/lib/postgresql/data
+      - ./supabase/volumes/db/init.sql:/docker-entrypoint-initdb.d/z_init.sql
+    networks:
+      - carpool-network
+
+  rest:
+    image: postgrest/postgrest:v10.1.2
+    container_name: carpool-rest
+    environment:
+      PGRST_DB_URI: postgres://postgres:${POSTGRES_PASSWORD:-postgres}@db:5432/postgres
+      PGRST_DB_SCHEMA: public,extensions
+      PGRST_DB_ANON_ROLE: anon
+      PGRST_JWT_SECRET: ${JWT_SECRET}
+      PGRST_PORT: 3000
+    depends_on:
+      - db
+    networks:
+      - carpool-network
+
+  auth:
+    image: supabase/gotrue:v2.143.0
+    container_name: carpool-auth
+    environment:
+      API_EXTERNAL_URL: http://localhost:8000/auth/v1
+      GOTRUE_API_HOST: 0.0.0.0
+      GOTRUE_API_PORT: 9999
+      GOTRUE_DB_DRIVER: postgres
+      GOTRUE_DB_DATABASE_URL: postgres://postgres:${POSTGRES_PASSWORD:-postgres}@db:5432/postgres?sslmode=disable
+      GOTRUE_JWT_SECRET: ${JWT_SECRET}
+      GOTRUE_JWT_EXP: 3600
+      GOTRUE_SITE_URL: http://localhost:8080
+      GOTRUE_EXTERNAL_EMAIL_ENABLED: "true"
+      GOTRUE_EXTERNAL_PHONE_ENABLED: "true"
+      GOTRUE_SMS_PROVIDER: ${SMS_PROVIDER:-twilio}
+      GOTRUE_SMS_TWILIO_ACCOUNT_SID: ${TWILIO_ACCOUNT_SID}
+      GOTRUE_SMS_TWILIO_AUTH_TOKEN: ${TWILIO_AUTH_TOKEN}
+      GOTRUE_SMS_TWILIO_MESSAGE_SERVICE_SID: ${TWILIO_MESSAGE_SERVICE_SID}
+    depends_on:
+      - db
+    networks:
+      - carpool-network
+
+  realtime:
+    image: supabase/realtime:v2.22.2
+    container_name: carpool-realtime
+    environment:
+      PORT: 4000
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_NAME: postgres
+      DB_USER: postgres
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      JWT_SECRET: ${JWT_SECRET}
+      SECRET_KEY_BASE: ${SECRET_KEY_BASE}
+      APP_NAME: realtime
+      FLY_APP_NAME: realtime
+      REPLICATION_MODE: RLS
+      SECURE_CHANNELS: "false"
+    depends_on:
+      - db
+    networks:
+      - carpool-network
+
+  kong:
+    image: kong:2.8.1-alpine
+    container_name: carpool-kong
+    ports:
+      - "8000:8000"
+    environment:
+      KONG_DATABASE: "off"
+      KONG_DECLARATIVE_CONFIG: /usr/local/kong/declarative/kong.yml
+      KONG_PROXY_LISTEN: 0.0.0.0:8000
+    volumes:
+      - ./supabase/volumes/api/kong.yml:/usr/local/kong/declarative/kong.yml:ro
+    depends_on:
+      - auth
+      - rest
+      - realtime
+    networks:
+      - carpool-network
+
+  osrm:
+    image: osrm/osrm-backend:latest
+    container_name: carpool-osrm
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./osrm-data:/data
+    command: osrm-routed --algorithm mld /data/melaka-latest.osrm
+    networks:
+      - carpool-network
+
+  web:
+    image: nginx:alpine
+    container_name: carpool-web
+    ports:
+      - "8080:80"
+    volumes:
+      - ./admin_dashboard/dist:/usr/share/nginx/html:ro
+    networks:
+      - carpool-network
+
+networks:
+  carpool-network:
+    name: carpool-network
+
+volumes:
+  carpool-db-data:
