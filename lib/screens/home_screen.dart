@@ -386,6 +386,25 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  void _handleRideCancelled() {
+    _rideSubscription?.unsubscribe();
+    setState(() {
+      _activeRide = null;
+      _polylinePoints = [];
+      _routeEstimate = null;
+      _pickupLatLng = null;
+      _dropLatLng = null;
+      _pickupController.clear();
+      _dropController.clear();
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Trip has been cancelled.'),
+        backgroundColor: Colors.orange,
+      ),
+    );
+  }
+
   void _subscribeToRideUpdates(String rideId) {
     _rideSubscription = _supabase
         .channel('active-ride-$rideId')
@@ -405,6 +424,8 @@ class _HomeScreenState extends State<HomeScreen> {
             if (_activeRide?['status'] == 'completed') {
               _showCompletedRatingSheet();
               _rideSubscription?.unsubscribe();
+            } else if (_activeRide?['status'] == 'cancelled') {
+              _handleRideCancelled();
             } else if (_activeRide?['driver_id'] != null) {
               _listenToDriverGPS(_activeRide!['driver_id']);
             }
@@ -841,6 +862,21 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ],
             ),
+            if (status == 'requested' || status == 'accepted' || status == 'arrived') ...[
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.grey[200],
+                    foregroundColor: Colors.red,
+                    elevation: 0,
+                  ),
+                  onPressed: () => _updateRideStatus(_activeRide!['id'], 'cancelled'),
+                  child: const Text('Cancel Ride'),
+                ),
+              ),
+            ],
           ],
         ),
       );
@@ -1119,21 +1155,36 @@ class _HomeScreenState extends State<HomeScreen> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                if (_activeRide!['status'] == 'accepted')
-                  ElevatedButton(
-                    onPressed: () => _updateRideStatus(_activeRide!['id'], 'arrived'),
-                    child: const Text('Arrived at Pickup'),
-                  ),
-                if (_activeRide!['status'] == 'arrived')
-                  ElevatedButton(
-                    onPressed: () => _updateRideStatus(_activeRide!['id'], 'picked_up'),
-                    child: const Text('Start Trip'),
-                  ),
-                if (_activeRide!['status'] == 'picked_up')
-                  ElevatedButton(
-                    onPressed: () => _updateRideStatus(_activeRide!['id'], 'completed'),
-                    child: const Text('Complete Trip'),
-                  ),
+                Row(
+                  children: [
+                    if (_activeRide!['status'] == 'accepted')
+                      ElevatedButton(
+                        onPressed: () => _updateRideStatus(_activeRide!['id'], 'arrived'),
+                        child: const Text('Arrived at Pickup'),
+                      ),
+                    if (_activeRide!['status'] == 'arrived')
+                      ElevatedButton(
+                        onPressed: () => _updateRideStatus(_activeRide!['id'], 'picked_up'),
+                        child: const Text('Start Trip'),
+                      ),
+                    if (_activeRide!['status'] == 'picked_up')
+                      ElevatedButton(
+                        onPressed: () => _updateRideStatus(_activeRide!['id'], 'completed'),
+                        child: const Text('Complete Trip'),
+                      ),
+                    if (_activeRide!['status'] == 'accepted' || _activeRide!['status'] == 'arrived') ...[
+                      const SizedBox(width: 8),
+                      OutlinedButton(
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: Colors.red,
+                          side: const BorderSide(color: Colors.red),
+                        ),
+                        onPressed: () => _updateRideStatus(_activeRide!['id'], 'cancelled'),
+                        child: const Text('Cancel Job'),
+                      ),
+                    ],
+                  ],
+                ),
                 IconButton(
                   icon: const Icon(Icons.chat_bubble_outline),
                   onPressed: () => Navigator.push(
