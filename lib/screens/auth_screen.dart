@@ -268,7 +268,7 @@ class _AuthScreenState extends State<AuthScreen> {
                             Switch(
                               value: _isDriver,
                               onChanged: (val) => setState(() => _isDriver = val),
-                              activeColor: AppTheme.primary,
+                              activeThumbColor: AppTheme.primary,
                             ),
                           ],
                         ),

@@ -42,7 +42,7 @@ class _HomeScreenState extends State<HomeScreen> {
   String? _selectedPickup;
   String? _selectedDrop;
   bool _womenOnly = false;
-  String _corporateEmailDomain = "";
+  final String _corporateEmailDomain = "";
   
   bool _calculatingRoute = false;
   Map<String, dynamic>? _routeEstimate;
@@ -671,7 +671,7 @@ class _HomeScreenState extends State<HomeScreen> {
           const SizedBox(height: 16),
           // Pickup Selector
           DropdownButtonFormField<String>(
-            value: _selectedPickup,
+            initialValue: _selectedPickup,
             hint: const Text('Select Pickup Location'),
             items: _mockLocations.keys.map((name) {
               return DropdownMenuItem(value: name, child: Text(name));
@@ -684,7 +684,7 @@ class _HomeScreenState extends State<HomeScreen> {
           const SizedBox(height: 12),
           // Dropoff Selector
           DropdownButtonFormField<String>(
-            value: _selectedDrop,
+            initialValue: _selectedDrop,
             hint: const Text('Select Destination'),
             items: _mockLocations.keys.map((name) {
               return DropdownMenuItem(value: name, child: Text(name));
@@ -749,7 +749,7 @@ class _HomeScreenState extends State<HomeScreen> {
               Switch(
                 value: _isOnline,
                 onChanged: _toggleOnline,
-                activeColor: Colors.green,
+                activeThumbColor: Colors.green,
               ),
             ],
           ),
