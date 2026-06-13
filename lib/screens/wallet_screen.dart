@@ -75,15 +75,15 @@ class _WalletScreenState extends State<WalletScreen> {
         Navigator.pop(context);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Top-up of RM ${amount.toStringAsFixed(2)} successful!'),
-            backgroundColor: Colors.green,
+            content: Text('Successfully topped up RM ${amount.toStringAsFixed(2)}!'),
+            backgroundColor: Theme.of(context).primaryColor,
           ),
         );
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Top-up failed: $e'), backgroundColor: Colors.red),
+          SnackBar(content: Text('Top-up failed: $e'), backgroundColor: Theme.of(context).colorScheme.secondary),
         );
       }
     } finally {
@@ -95,7 +95,7 @@ class _WalletScreenState extends State<WalletScreen> {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: AppTheme.canvas,
+      backgroundColor: Theme.of(context).colorScheme.surface,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(AppTheme.radiusXl)),
       ),
@@ -112,13 +112,13 @@ class _WalletScreenState extends State<WalletScreen> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
+                Text(
                   'Top up wallet',
                   style: TextStyle(
                     fontFamily: 'Inter',
                     fontSize: 24,
                     fontWeight: FontWeight.bold,
-                    color: AppTheme.ink,
+                    color: Theme.of(context).colorScheme.onSurface,
                   ),
                 ),
                 const SizedBox(height: 16),
@@ -128,8 +128,8 @@ class _WalletScreenState extends State<WalletScreen> {
                   children: [10, 20, 50, 100].map((amt) {
                     return ElevatedButton(
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: AppTheme.canvasSoft,
-                        foregroundColor: AppTheme.ink,
+                        backgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest,
+                        foregroundColor: Theme.of(context).colorScheme.onSurface,
                         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(AppTheme.radiusMd),
@@ -210,16 +210,16 @@ class _WalletScreenState extends State<WalletScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text(
+        title: Text(
           'Wallet',
-          style: TextStyle(fontWeight: FontWeight.bold, color: AppTheme.ink),
+          style: TextStyle(fontWeight: FontWeight.bold, color: Theme.of(context).colorScheme.onSurface),
         ),
-        backgroundColor: AppTheme.canvas,
+        backgroundColor: Theme.of(context).colorScheme.surface,
         elevation: 0,
-        iconTheme: const IconThemeData(color: AppTheme.ink),
+        iconTheme: IconThemeData(color: Theme.of(context).colorScheme.onSurface),
       ),
       body: _loading
-          ? const Center(child: CircularProgressIndicator(color: AppTheme.primary))
+          ? Center(child: CircularProgressIndicator(color: Theme.of(context).primaryColor))
           : Padding(
               padding: const EdgeInsets.all(24.0),
               child: Column(
@@ -230,26 +230,26 @@ class _WalletScreenState extends State<WalletScreen> {
                     width: double.infinity,
                     padding: const EdgeInsets.all(24),
                     decoration: AppTheme.cardDecoration(
-                      color: AppTheme.primary,
+                      context,
                       radius: AppTheme.radiusXl,
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text(
+                        Text(
                           'Total Balance',
                           style: TextStyle(
                             fontFamily: 'Inter',
-                            color: AppTheme.mute,
+                            color: Theme.of(context).textTheme.bodyMedium?.color,
                             fontSize: 14,
                           ),
                         ),
                         const SizedBox(height: 8),
                         Text(
                           'RM ${_balance.toStringAsFixed(2)}',
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontFamily: 'Inter',
-                            color: AppTheme.onPrimary,
+                            color: Theme.of(context).colorScheme.onSurface,
                             fontSize: 36,
                             fontWeight: FontWeight.bold,
                           ),
@@ -257,8 +257,8 @@ class _WalletScreenState extends State<WalletScreen> {
                         const SizedBox(height: 24),
                         ElevatedButton(
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: AppTheme.canvas,
-                            foregroundColor: AppTheme.ink,
+                            backgroundColor: Theme.of(context).colorScheme.surface,
+                            foregroundColor: Theme.of(context).colorScheme.onSurface,
                           ),
                           onPressed: _showTopUpBottomSheet,
                           child: const Text('Top Up'),
@@ -267,13 +267,13 @@ class _WalletScreenState extends State<WalletScreen> {
                     ),
                   ),
                   const SizedBox(height: 32),
-                  const Text(
+                  Text(
                     'Transaction History',
                     style: TextStyle(
                       fontFamily: 'Inter',
                       fontSize: 20,
                       fontWeight: FontWeight.bold,
-                      color: AppTheme.ink,
+                      color: Theme.of(context).colorScheme.onSurface,
                     ),
                   ),
                   const SizedBox(height: 16),
@@ -281,9 +281,9 @@ class _WalletScreenState extends State<WalletScreen> {
                   Expanded(
                     child: ListView(
                       children: [
-                        _transactionItem('Top Up (Stripe)', '+ RM 50.00', 'June 11, 2026', true),
-                        _transactionItem('Ride Payment (R-229)', '- RM 18.50', 'June 10, 2026', false),
-                        _transactionItem('Ride Earnings (D-102)', '+ RM 22.00', 'June 09, 2026', true),
+                        _transactionItem('Top Up (Stripe)', 50.00, 'June 11, 2026', true),
+                        _transactionItem('Ride Payment (R-229)', 18.50, 'June 10, 2026', false),
+                        _transactionItem('Ride Earnings (D-102)', 22.00, 'June 09, 2026', true),
                       ],
                     ),
                   )
@@ -293,11 +293,11 @@ class _WalletScreenState extends State<WalletScreen> {
     );
   }
 
-  Widget _transactionItem(String title, String amount, String date, bool isCredit) {
+  Widget _transactionItem(String title, double amount, String date, bool isCredit) {
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(16),
-      decoration: AppTheme.cardDecoration(color: AppTheme.canvasSoft, radius: AppTheme.radiusMd),
+      decoration: AppTheme.cardDecoration(context, radius: AppTheme.radiusMd),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
@@ -306,20 +306,21 @@ class _WalletScreenState extends State<WalletScreen> {
             children: [
               Text(
                 title,
-                style: const TextStyle(fontWeight: FontWeight.w500, color: AppTheme.ink),
+                style: TextStyle(fontWeight: FontWeight.w500, color: Theme.of(context).colorScheme.onSurface),
               ),
               const SizedBox(height: 4),
               Text(
                 date,
-                style: const TextStyle(fontSize: 12, color: AppTheme.body),
+                style: TextStyle(fontSize: 12, color: Theme.of(context).textTheme.bodyMedium?.color),
               ),
             ],
           ),
           Text(
-            amount,
+            isCredit ? '+ RM ${amount.toStringAsFixed(2)}' : '- RM ${amount.toStringAsFixed(2)}',
             style: TextStyle(
               fontWeight: FontWeight.bold,
-              color: isCredit ? Colors.green[700] : Colors.red[700],
+              fontSize: 16,
+              color: isCredit ? Theme.of(context).primaryColor : Theme.of(context).colorScheme.secondary,
             ),
           ),
         ],

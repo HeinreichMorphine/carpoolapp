@@ -42,28 +42,55 @@ serve(async (req) => {
       );
     }
 
-    // Call OSRM (using OSRM_URL env var or public project-osrm router)
-    const osrmBaseUrl = Deno.env.get("OSRM_URL") ?? "https://router.project-osrm.org";
-    const osrmUrl = `${osrmBaseUrl}/route/v1/driving/${pickup_lng},${pickup_lat};${drop_lng},${drop_lat}?overview=full&geometries=polyline`;
-    
+    // Call OpenRouteService
+    const orsKey = Deno.env.get("OPEN_ROUTE_SERVICE_API_KEY");
     let distanceKm = 0;
     let durationMins = 0;
     let polyline = "";
 
     try {
-      const osrmRes = await fetch(osrmUrl);
-      const osrmData = await osrmRes.json();
+      if (!orsKey) throw new Error("OPEN_ROUTE_SERVICE_API_KEY missing");
+      const orsUrl = `https://api.openrouteservice.org/v2/directions/driving-car?api_key=${orsKey}&start=${pickup_lng},${pickup_lat}&end=${drop_lng},${drop_lat}`;
+      const orsRes = await fetch(orsUrl);
+      if (!orsRes.ok) {
+        throw new Error(`ORS API error: ${orsRes.statusText}`);
+      }
+      const orsData = await orsRes.json();
       
-      if (osrmData.routes && osrmData.routes.length > 0) {
-        const route = osrmData.routes[0];
-        distanceKm = route.distance / 1000.0; // OSRM returns meters
-        durationMins = route.duration / 60.0; // OSRM returns seconds
-        polyline = route.geometry;
+      if (orsData.features && orsData.features.length > 0) {
+        const feature = orsData.features[0];
+        const summary = feature.properties.summary;
+        distanceKm = summary.distance / 1000.0; // ORS returns meters
+        durationMins = summary.duration / 60.0; // ORS returns seconds
+        
+        // Encode coordinates to polyline string for flutter frontend compatibility
+        const coords = feature.geometry.coordinates; // [lng, lat][]
+        let prevLat = 0, prevLng = 0;
+        for (const [lng, lat] of coords) {
+          const latE5 = Math.round(lat * 1e5);
+          const lngE5 = Math.round(lng * 1e5);
+          let dLat = latE5 - prevLat;
+          let dLng = lngE5 - prevLng;
+          prevLat = latE5;
+          prevLng = lngE5;
+          dLat = dLat < 0 ? ~(dLat << 1) : (dLat << 1);
+          dLng = dLng < 0 ? ~(dLng << 1) : (dLng << 1);
+          while (dLat >= 0x20) {
+            polyline += String.fromCharCode((0x20 | (dLat & 0x1f)) + 63);
+            dLat >>= 5;
+          }
+          polyline += String.fromCharCode(dLat + 63);
+          while (dLng >= 0x20) {
+            polyline += String.fromCharCode((0x20 | (dLng & 0x1f)) + 63);
+            dLng >>= 5;
+          }
+          polyline += String.fromCharCode(dLng + 63);
+        }
       } else {
-        throw new Error("No route found by OSRM");
+        throw new Error("No route found by ORS");
       }
     } catch (err) {
-      console.warn("OSRM routing failed, falling back to Haversine straight-line distance:", err);
+      console.warn("ORS routing failed, falling back to Haversine straight-line distance:", err);
       // Fallback: Haversine distance
       const R = 6371; // Earth radius in km
       const dLat = (drop_lat - pickup_lat) * Math.PI / 180;

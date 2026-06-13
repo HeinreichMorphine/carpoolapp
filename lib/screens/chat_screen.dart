@@ -16,18 +16,21 @@ class _ChatScreenState extends State<ChatScreen> {
   final List<Map<String, dynamic>> _messages = [];
   bool _loading = false;
   late RealtimeChannel _chatChannel;
+  late RealtimeChannel _rideStatusChannel;
 
   @override
   void initState() {
     super.initState();
     _loadMessages();
     _subscribeToChat();
+    _subscribeToRideStatus();
   }
 
   @override
   void dispose() {
     _msgController.dispose();
     _supabase.removeChannel(_chatChannel);
+    _supabase.removeChannel(_rideStatusChannel);
     super.dispose();
   }
 
@@ -72,6 +75,35 @@ class _ChatScreenState extends State<ChatScreen> {
     _chatChannel.subscribe();
   }
 
+  void _subscribeToRideStatus() {
+    _rideStatusChannel = _supabase.channel('ride-status-${widget.rideId}')
+      .onPostgresChanges(
+        event: PostgresChangeEvent.update,
+        schema: 'public',
+        table: 'rides',
+        filter: PostgresChangeFilter(
+          type: PostgresChangeFilterType.eq,
+          column: 'id',
+          value: widget.rideId,
+        ),
+        callback: (payload) {
+          if (mounted) {
+            final status = payload.newRecord['status'];
+            if (status == 'completed') {
+              Navigator.pop(context);
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Trip completed safely. Chat automatically closed.'),
+                  backgroundColor: AppTheme.primary,
+                ),
+              );
+            }
+          }
+        },
+      );
+    _rideStatusChannel.subscribe();
+  }
+
   Future<void> _sendMessage() async {
     final text = _msgController.text.trim();
     if (text.isEmpty) return;
@@ -89,7 +121,7 @@ class _ChatScreenState extends State<ChatScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to send message: $e'), backgroundColor: Colors.red),
+          SnackBar(content: Text('Failed to send message: $e'), backgroundColor: AppTheme.accent),
         );
       }
     }
@@ -101,21 +133,21 @@ class _ChatScreenState extends State<ChatScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text(
+        title: Text(
           'In-App Chat',
-          style: TextStyle(fontWeight: FontWeight.bold, color: AppTheme.ink),
+          style: TextStyle(fontWeight: FontWeight.bold, color: Theme.of(context).colorScheme.onSurface),
         ),
-        backgroundColor: AppTheme.canvas,
+        backgroundColor: Theme.of(context).colorScheme.surface,
         elevation: 0,
-        iconTheme: const IconThemeData(color: AppTheme.ink),
+        iconTheme: IconThemeData(color: Theme.of(context).colorScheme.onSurface),
       ),
       body: Column(
         children: [
           Expanded(
             child: _loading
-                ? const Center(child: CircularProgressIndicator(color: AppTheme.primary))
+                ? Center(child: CircularProgressIndicator(color: Theme.of(context).primaryColor))
                 : _messages.isEmpty
-                    ? const Center(child: Text('No messages yet. Send a greeting!'))
+                    ? Text('No messages yet. Send a greeting!', style: TextStyle(color: Theme.of(context).colorScheme.onSurface))
                     : ListView.builder(
                         padding: const EdgeInsets.all(16),
                         itemCount: _messages.length,
@@ -128,7 +160,7 @@ class _ChatScreenState extends State<ChatScreen> {
           ),
           Container(
             padding: const EdgeInsets.all(16),
-            color: AppTheme.canvas,
+            color: Theme.of(context).colorScheme.surface,
             child: Row(
               children: [
                 Expanded(
@@ -143,7 +175,7 @@ class _ChatScreenState extends State<ChatScreen> {
                 IconButton(
                   onPressed: _sendMessage,
                   icon: const Icon(Icons.send),
-                  color: AppTheme.primary,
+                  color: Theme.of(context).primaryColor,
                 ),
               ],
             ),
@@ -160,13 +192,15 @@ class _ChatScreenState extends State<ChatScreen> {
         margin: const EdgeInsets.only(bottom: 8),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         decoration: AppTheme.cardDecoration(
-          color: isMe ? AppTheme.primary : AppTheme.canvasSoft,
+          context,
           radius: AppTheme.radiusLg,
+        ).copyWith(
+          color: isMe ? Theme.of(context).primaryColor : Theme.of(context).colorScheme.surfaceContainerHighest,
         ),
         child: Text(
           text,
           style: TextStyle(
-            color: isMe ? AppTheme.onPrimary : AppTheme.ink,
+            color: isMe ? Colors.white : Theme.of(context).colorScheme.onSurface,
             fontFamily: 'Inter',
           ),
         ),

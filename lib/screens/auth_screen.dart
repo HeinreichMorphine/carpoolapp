@@ -75,13 +75,13 @@ class _AuthScreenState extends State<AuthScreen> {
     } on AuthException catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(e.message), backgroundColor: Colors.red),
+          SnackBar(content: Text(e.message), backgroundColor: AppTheme.accent),
         );
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('An unexpected error occurred: $e'), backgroundColor: Colors.red),
+          SnackBar(content: Text('An unexpected error occurred: $e'), backgroundColor: AppTheme.accent),
         );
       }
     } finally {
@@ -102,13 +102,13 @@ class _AuthScreenState extends State<AuthScreen> {
     } on AuthException catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(e.message), backgroundColor: Colors.red),
+          SnackBar(content: Text(e.message), backgroundColor: AppTheme.accent),
         );
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Google sign-in failed: $e'), backgroundColor: Colors.red),
+          SnackBar(content: Text('Google sign-in failed: $e'), backgroundColor: AppTheme.accent),
         );
       }
     } finally {
@@ -171,7 +171,7 @@ class _AuthScreenState extends State<AuthScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Authentication failed: $e'), backgroundColor: Colors.red),
+          SnackBar(content: Text('Authentication failed: $e'), backgroundColor: AppTheme.accent),
         );
       }
     } finally {
@@ -189,24 +189,33 @@ class _AuthScreenState extends State<AuthScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const SizedBox(height: 40),
+              // Brand Logo
+              Center(
+                child: Image.asset(
+                  'assets/images/logo.jpeg',
+                  height: 100,
+                  fit: BoxFit.contain,
+                ),
+              ),
+              const SizedBox(height: 24),
               // Brand Title
-              const Text(
+              Text(
                 'Go anywhere with us',
                 style: TextStyle(
                   fontFamily: 'Inter',
                   fontSize: 36,
                   fontWeight: FontWeight.bold,
                   height: 1.2,
-                  color: AppTheme.ink,
+                  color: Theme.of(context).colorScheme.onSurface,
                 ),
               ),
               const SizedBox(height: 8),
               Text(
                 _phoneAuthMode ? 'Verify your phone number' : (_isSignUp ? 'Create your JomRide account' : 'Sign in to your account'),
-                style: const TextStyle(
+                style: TextStyle(
                   fontFamily: 'Inter',
                   fontSize: 16,
-                  color: AppTheme.body,
+                  color: Theme.of(context).textTheme.bodyMedium?.color,
                 ),
               ),
               const SizedBox(height: 40),
@@ -220,9 +229,9 @@ class _AuthScreenState extends State<AuthScreen> {
                     onSelected: (val) {
                       if (val) setState(() => _phoneAuthMode = false);
                     },
-                    selectedColor: AppTheme.primary,
+                    selectedColor: Theme.of(context).primaryColor,
                     labelStyle: TextStyle(
-                      color: !_phoneAuthMode ? AppTheme.onPrimary : AppTheme.ink,
+                      color: !_phoneAuthMode ? Colors.white : Theme.of(context).colorScheme.onSurface,
                     ),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppTheme.radiusPill)),
                   ),
@@ -233,9 +242,9 @@ class _AuthScreenState extends State<AuthScreen> {
                     onSelected: (val) {
                       if (val) setState(() => _phoneAuthMode = true);
                     },
-                    selectedColor: AppTheme.primary,
+                    selectedColor: Theme.of(context).primaryColor,
                     labelStyle: TextStyle(
-                      color: _phoneAuthMode ? AppTheme.onPrimary : AppTheme.ink,
+                      color: _phoneAuthMode ? Colors.white : Theme.of(context).colorScheme.onSurface,
                     ),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppTheme.radiusPill)),
                   ),
@@ -293,18 +302,18 @@ class _AuthScreenState extends State<AuthScreen> {
                     if (_isSignUp || _phoneAuthMode) ...[
                       Container(
                         padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 16.0),
-                        decoration: AppTheme.cardDecoration(color: AppTheme.canvasSoft, radius: AppTheme.radiusMd),
+                        decoration: AppTheme.cardDecoration(context, radius: AppTheme.radiusMd),
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            const Text(
+                            Text(
                               'Register as Driver?',
-                              style: TextStyle(fontWeight: FontWeight.w500, color: AppTheme.ink),
+                              style: TextStyle(fontWeight: FontWeight.w500, color: Theme.of(context).colorScheme.onSurface),
                             ),
                             Switch(
                               value: _isDriver,
                               onChanged: (val) => setState(() => _isDriver = val),
-                              activeThumbColor: AppTheme.primary,
+                              activeThumbColor: Theme.of(context).primaryColor,
                             ),
                           ],
                         ),
@@ -322,7 +331,7 @@ class _AuthScreenState extends State<AuthScreen> {
                                 ? (_otpSent ? _handlePhoneAuthVerify : _handlePhoneAuthSend)
                                 : _handleEmailAuth),
                         child: _loading
-                            ? const CircularProgressIndicator(color: AppTheme.onPrimary)
+                            ? const CircularProgressIndicator(color: Colors.white)
                             : Text(
                                 _phoneAuthMode
                                     ? (_otpSent ? 'Verify Code' : 'Send Code')
@@ -335,12 +344,12 @@ class _AuthScreenState extends State<AuthScreen> {
                     if (!_phoneAuthMode) ...[
                       Row(
                         children: [
-                          const Expanded(child: Divider(color: AppTheme.mute)),
-                          const Padding(
-                            padding: EdgeInsets.symmetric(horizontal: 16),
-                            child: Text('or', style: TextStyle(color: AppTheme.body)),
+                          const Expanded(child: Divider()),
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 16),
+                            child: Text('or', style: TextStyle(color: Theme.of(context).textTheme.bodyMedium?.color)),
                           ),
-                          const Expanded(child: Divider(color: AppTheme.mute)),
+                          const Expanded(child: Divider()),
                         ],
                       ),
                       const SizedBox(height: 16),
@@ -348,13 +357,13 @@ class _AuthScreenState extends State<AuthScreen> {
                         width: double.infinity,
                         child: OutlinedButton.icon(
                           onPressed: _loading ? null : _handleGoogleAuth,
-                          icon: const Icon(Icons.g_mobiledata, size: 28, color: AppTheme.ink),
-                          label: const Text(
+                          icon: Icon(Icons.g_mobiledata, size: 28, color: Theme.of(context).colorScheme.onSurface),
+                          label: Text(
                             'Continue with Google',
-                            style: TextStyle(color: AppTheme.ink, fontWeight: FontWeight.w500),
+                            style: TextStyle(color: Theme.of(context).colorScheme.onSurface, fontWeight: FontWeight.w500),
                           ),
                           style: OutlinedButton.styleFrom(
-                            side: const BorderSide(color: AppTheme.hairlineMid, width: 1.5),
+                            side: BorderSide(color: Theme.of(context).dividerColor, width: 1.5),
                             padding: const EdgeInsets.symmetric(vertical: 14),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(AppTheme.radiusPill),
@@ -372,7 +381,7 @@ class _AuthScreenState extends State<AuthScreen> {
                         child: OutlinedButton(
                           onPressed: () => setState(() => _isSignUp = !_isSignUp),
                           style: OutlinedButton.styleFrom(
-                            side: const BorderSide(color: AppTheme.primary, width: 1.5),
+                            side: BorderSide(color: Theme.of(context).primaryColor, width: 1.5),
                             padding: const EdgeInsets.symmetric(vertical: 16),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(AppTheme.radiusPill),
@@ -380,7 +389,7 @@ class _AuthScreenState extends State<AuthScreen> {
                           ),
                           child: Text(
                             _isSignUp ? 'Already have an account? Log In' : 'New here? Create account',
-                            style: const TextStyle(color: AppTheme.ink, fontWeight: FontWeight.w500),
+                            style: TextStyle(color: Theme.of(context).colorScheme.onSurface, fontWeight: FontWeight.w500),
                           ),
                         ),
                       ),

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'services/app_theme.dart';
+import 'package:provider/provider.dart';
 import 'screens/auth_screen.dart';
 import 'screens/home_screen.dart';
 
@@ -15,7 +16,12 @@ void main() async {
     ),
   );
 
-  runApp(const MyApp());
+  runApp(
+    ChangeNotifierProvider(
+      create: (_) => ThemeNotifier(),
+      child: const MyApp(),
+    ),
+  );
 }
 
 class MyApp extends StatelessWidget {
@@ -23,11 +29,17 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'JomRide',
-      theme: AppTheme.lightTheme,
-      debugShowCheckedModeBanner: false,
-      home: const AuthRedirectHandler(),
+    return Consumer<ThemeNotifier>(
+      builder: (context, themeNotifier, child) {
+        return MaterialApp(
+          title: 'JomRide',
+          theme: AppTheme.lightTheme,
+          darkTheme: AppTheme.darkTheme,
+          themeMode: themeNotifier.themeMode,
+          debugShowCheckedModeBanner: false,
+          home: const AuthRedirectHandler(),
+        );
+      },
     );
   }
 }
@@ -69,9 +81,9 @@ class _AuthRedirectHandlerState extends State<AuthRedirectHandler> {
   @override
   Widget build(BuildContext context) {
     if (!_initialized) {
-      return const Scaffold(
+      return Scaffold(
         body: Center(
-          child: CircularProgressIndicator(color: AppTheme.primary),
+          child: CircularProgressIndicator(color: Theme.of(context).primaryColor),
         ),
       );
     }
