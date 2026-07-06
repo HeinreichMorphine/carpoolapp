@@ -188,7 +188,10 @@ $$ language plpgsql security definer;
 create or replace function public.handle_new_user()
 returns trigger as $$
 begin
-  insert into public.profiles (id, name, phone, role, wallet_balance, rating, is_online)
+  insert into public.profiles (
+    id, name, phone, role, wallet_balance, rating, is_online,
+    emergency_contact_name, emergency_contact_phone
+  )
   values (
     new.id,
     coalesce(new.raw_user_meta_data->>'name', new.email, new.phone, 'User'),
@@ -196,7 +199,9 @@ begin
     coalesce(new.raw_user_meta_data->>'role', 'rider'),
     0.0,
     5.0,
-    false
+    false,
+    new.raw_user_meta_data->>'emergency_contact_name',
+    new.raw_user_meta_data->>'emergency_contact_phone'
   );
   return new;
 end;

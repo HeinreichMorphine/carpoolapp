@@ -18,6 +18,8 @@ class _AuthScreenState extends State<AuthScreen> {
   final _nameController = TextEditingController();
   final _phoneController = TextEditingController();
   final _otpController = TextEditingController();
+  final _emergencyContactNameController = TextEditingController();
+  final _emergencyContactPhoneController = TextEditingController();
 
   bool _isSignUp = false;
   bool _isDriver = false;
@@ -32,6 +34,8 @@ class _AuthScreenState extends State<AuthScreen> {
     _nameController.dispose();
     _phoneController.dispose();
     _otpController.dispose();
+    _emergencyContactNameController.dispose();
+    _emergencyContactPhoneController.dispose();
     super.dispose();
   }
 
@@ -47,6 +51,8 @@ class _AuthScreenState extends State<AuthScreen> {
           data: {
             'name': _nameController.text.trim(),
             'role': _isDriver ? 'driver' : 'rider',
+            'emergency_contact_name': _emergencyContactNameController.text.trim(),
+            'emergency_contact_phone': _emergencyContactPhoneController.text.trim(),
           },
         );
         if (mounted) {
@@ -263,6 +269,19 @@ class _AuthScreenState extends State<AuthScreen> {
                           controller: _nameController,
                           decoration: const InputDecoration(labelText: 'Full Name'),
                           validator: (val) => val == null || val.isEmpty ? 'Please enter your name' : null,
+                        ),
+                        const SizedBox(height: 16),
+                        TextFormField(
+                          controller: _emergencyContactNameController,
+                          decoration: const InputDecoration(labelText: 'Emergency Contact Name (e.g. Mom, Dad, Friend)'),
+                          validator: (val) => val == null || val.trim().isEmpty ? 'Please enter an emergency contact name' : null,
+                        ),
+                        const SizedBox(height: 16),
+                        TextFormField(
+                          controller: _emergencyContactPhoneController,
+                          decoration: const InputDecoration(labelText: 'Emergency Contact Phone (e.g. +60123456789)'),
+                          keyboardType: TextInputType.phone,
+                          validator: (val) => val == null || val.trim().isEmpty ? 'Please enter a phone number' : null,
                         ),
                         const SizedBox(height: 16),
                       ],
