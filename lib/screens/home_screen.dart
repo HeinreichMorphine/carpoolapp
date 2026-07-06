@@ -8,6 +8,7 @@ import 'package:latlong2/latlong.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:http/http.dart' as http;
+import 'package:geolocator/geolocator.dart';
 import '../services/app_theme.dart';
 import 'chat_screen.dart';
 import 'wallet_screen.dart';
@@ -90,6 +91,7 @@ class _HomeScreenState extends State<HomeScreen> {
   void initState() {
     super.initState();
     _loadUserProfile();
+    _getCurrentLocation();
   }
 
   @override
@@ -130,6 +132,58 @@ class _HomeScreenState extends State<HomeScreen> {
       debugPrint('Error loading profile: $e');
     } finally {
       setState(() => _loadingProfile = false);
+    }
+  }
+
+  Future<void> _getCurrentLocation() async {
+    bool serviceEnabled;
+    LocationPermission permission;
+
+    // Test if location services are enabled.
+    serviceEnabled = await Geolocator.isLocationServiceEnabled();
+    if (!serviceEnabled) {
+      debugPrint('Location services are disabled.');
+      return;
+    }
+
+    permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.denied) {
+      permission = await Geolocator.requestPermission();
+      if (permission == LocationPermission.denied) {
+        debugPrint('Location permissions are denied');
+        return;
+      }
+    }
+
+    if (permission == LocationPermission.deniedForever) {
+      debugPrint('Location permissions are permanently denied.');
+      return;
+    }
+
+    // When we reach here, permissions are granted and we can
+    // continue accessing the position of the device.
+    try {
+      final position = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.high,
+      );
+      
+      final latLng = LatLng(position.latitude, position.longitude);
+      
+      setState(() {
+        _pickupLatLng = latLng;
+      });
+      
+      // Move camera to user's location
+      _mapController.move(latLng, 15);
+      
+      // Try to get address for the text field
+      final address = await _reverseGeocode(latLng);
+      setState(() {
+        _pickupAddress = address;
+        _pickupController.text = address;
+      });
+    } catch (e) {
+      debugPrint('Error getting current location: $e');
     }
   }
 
@@ -1180,6 +1234,42 @@ class _HomeScreenState extends State<HomeScreen> {
               ],
             ),
           ),
+
+          // Popular Destinations Recommender
+          if (_routeEstimate == null && _searchResults.isEmpty && !_searchingAddress) ...[
+            const SizedBox(height: 16),
+            Text(
+              'Popular in Melaka',
+              style: TextStyle(fontFamily: 'Inter', fontSize: 16, fontWeight: FontWeight.bold, color: Theme.of(context).colorScheme.onSurface),
+            ),
+            const SizedBox(height: 8),
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: _mockLocations.entries.map((entry) {
+                  return Padding(
+                    padding: const EdgeInsets.only(right: 8.0),
+                    child: ActionChip(
+                      backgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest,
+                      labelStyle: TextStyle(color: Theme.of(context).colorScheme.onSurface, fontSize: 13),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppTheme.radiusPill)),
+                      side: BorderSide.none,
+                      label: Text(entry.key),
+                      avatar: const Icon(Icons.place, size: 16, color: AppTheme.accent),
+                      onPressed: () {
+                        setState(() {
+                          _dropLatLng = entry.value;
+                          _dropAddress = entry.key;
+                          _dropController.text = entry.key;
+                        });
+                        _calculateRoute();
+                      },
+                    ),
+                  );
+                }).toList(),
+              ),
+            ),
+          ],
 
           // Search Results View
           if (_searchingAddress)
