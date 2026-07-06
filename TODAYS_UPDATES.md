@@ -83,3 +83,17 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 ```
+
+---
+
+## 📦 Git Commit History (Today)
+
+Below is the list of git commits pushed today for reference:
+
+* **`c797df9`** - **Create TODAYS_UPDATES.md documentation file for team reference**
+* **`3858e88`** - **Simplify rider active trip fare details view**
+* **`47c1ce8`** - **Add detailed real-time fare breakdown to Rider active ride screen**
+* **`cd175bc`** - **Implement decoupled driver earnings model**
+* **`fbc0d32`** - **Improve mock/preset location workflow for rider and driver**
+* **`af70f3c`** - **Add emergency contact inputs to register page & update DB trigger to save them**
+* **`ca0c1e6`** - **Fix driver accept ride issue & add emergency contact for SOS alert**
