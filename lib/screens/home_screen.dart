@@ -1140,16 +1140,40 @@ class _HomeScreenState extends State<HomeScreen> {
               // Marker Layer (Pickup, Drop, Driver Location)
               MarkerLayer(
                 markers: [
-                  if (_pickupLatLng != null)
+                  // Rider's selected pickup (for rider view)
+                  if (_pickupLatLng != null && !isDriver)
                     Marker(
                       point: _pickupLatLng!,
                       child: const Icon(Icons.location_on, color: AppTheme.primary, size: 36),
                     ),
-                  if (_dropLatLng != null)
+                  if (_dropLatLng != null && !isDriver)
                     Marker(
                       point: _dropLatLng!,
                       child: const Icon(Icons.flag, color: AppTheme.accent, size: 36),
                     ),
+                  // Driver view: show all pickup and dropoff pins for active trips
+                  if (isDriver) ...
+                    _activeDriverRides.expand((ride) {
+                      final pickupLat = double.tryParse(ride['pickup_latitude'].toString());
+                      final pickupLng = double.tryParse(ride['pickup_longitude'].toString());
+                      final dropLat = double.tryParse(ride['drop_latitude'].toString());
+                      final dropLng = double.tryParse(ride['drop_longitude'].toString());
+                      final markers = <Marker>[];
+                      if (pickupLat != null && pickupLng != null) {
+                        markers.add(Marker(
+                          point: LatLng(pickupLat, pickupLng),
+                          child: const Icon(Icons.person_pin_circle, color: AppTheme.primary, size: 36),
+                        ));
+                      }
+                      if (dropLat != null && dropLng != null) {
+                        markers.add(Marker(
+                          point: LatLng(dropLat, dropLng),
+                          child: const Icon(Icons.flag, color: AppTheme.accent, size: 36),
+                        ));
+                      }
+                      return markers;
+                    }).toList(),
+                  // Driver car location marker
                   if (_driverLocation != null)
                     Marker(
                       point: _driverLocation!,
@@ -2044,6 +2068,19 @@ class _HomeScreenState extends State<HomeScreen> {
           setState(() {
             _polylinePoints = newPoints;
           });
+
+          // Fit camera to the full multi-stop route
+          if (newPoints.isNotEmpty) {
+            final lats = newPoints.map((p) => p.latitude);
+            final lngs = newPoints.map((p) => p.longitude);
+            final bounds = LatLngBounds(
+              LatLng(lats.reduce(math.min), lngs.reduce(math.min)),
+              LatLng(lats.reduce(math.max), lngs.reduce(math.max)),
+            );
+            _mapController.fitCamera(
+              CameraFit.bounds(bounds: bounds, padding: const EdgeInsets.all(50)),
+            );
+          }
 
           // Broadcast to riders immediately
           final userId = _supabase.auth.currentUser?.id;
