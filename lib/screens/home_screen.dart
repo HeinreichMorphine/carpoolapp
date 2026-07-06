@@ -920,6 +920,40 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  Future<void> _recalculateCarpoolFares(String driverId) async {
+    try {
+      final ridesData = await _supabase
+          .from('rides')
+          .select('id, distance_km, duration_mins')
+          .eq('driver_id', driverId)
+          .inFilter('status', ['accepted', 'arrived', 'picked_up']);
+          
+      final rides = List<Map<String, dynamic>>.from(ridesData);
+      final numRides = rides.length;
+      if (numRides <= 1) return; // No discount for single rider
+      
+      final discount = numRides == 2 ? 0.80 : 0.70; // 20% off for 2, 30% off for 3+
+      
+      for (var ride in rides) {
+        final dist = double.tryParse(ride['distance_km'].toString()) ?? 0.0;
+        final mins = double.tryParse(ride['duration_mins'].toString()) ?? 0.0;
+        
+        final routeCost = (dist * 1.20) + (mins * 0.30);
+        final costPerSeat = math.max(5.0, routeCost);
+        const platformFee = 1.50;
+        
+        final discountedCost = costPerSeat * discount;
+        final newFare = discountedCost + platformFee;
+        
+        await _supabase.from('rides').update({
+          'fare': double.parse(newFare.toStringAsFixed(2))
+        }).eq('id', ride['id']);
+      }
+    } catch (e) {
+      debugPrint('Error recalculating fares: $e');
+    }
+  }
+
   Future<void> _updateRideStatus(String rideId, String status) async {
     try {
       final userId = _supabase.auth.currentUser?.id;
@@ -959,7 +993,7 @@ class _HomeScreenState extends State<HomeScreen> {
             });
 
             final routeStr = "Pickup -> " + dropoffInfo.map((d) => d['address']).join(' -> ');
-            final notificationMessage = "🚗 Carpool Alert: You are sharing this ride with other passengers! Route order: $routeStr";
+            final notificationMessage = "🚗 Carpool Alert: You are sharing this ride with other passengers! Route order: $routeStr\n💰 Great news! Your fare has been automatically discounted because of the carpool.";
 
             for (final ride in allRides) {
               await _supabase.from('chats').insert({
@@ -973,6 +1007,11 @@ class _HomeScreenState extends State<HomeScreen> {
       }
 
       await _supabase.from('rides').update(updateData).eq('id', rideId);
+      
+      if (status == 'accepted' && userId != null) {
+        await _recalculateCarpoolFares(userId);
+      }
+      
       _notifyTelegram(rideId, status);
 
       // Handle automatic wallet deduction on completion
