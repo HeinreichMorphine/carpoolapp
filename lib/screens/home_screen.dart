@@ -94,6 +94,7 @@ class _HomeScreenState extends State<HomeScreen> {
   // Driver states
   bool _isOnline = false;
   bool _rideRequestListenerActive = false;
+  bool _driverRouteManuallySet = false;
   LatLng? _driverRouteStart;
   LatLng? _driverRouteEnd;
   final TextEditingController _driverStartController = TextEditingController();
@@ -210,11 +211,12 @@ class _HomeScreenState extends State<HomeScreen> {
       final isDriver = _profile?['role'] == 'driver';
       
       setState(() {
-        if (isDriver) {
-          _driverRouteStart = latLng;
-        } else {
+        if (!isDriver) {
+          // For riders, auto-set pickup location from GPS
           _pickupLatLng = latLng;
         }
+        // Drivers: GPS only moves camera, does NOT set _driverRouteStart
+        // (that must be set manually so the 5km filter doesn't reject all riders)
       });
       
       // Move camera to user's location
@@ -780,6 +782,8 @@ class _HomeScreenState extends State<HomeScreen> {
         _driverRouteEnd = _mockLocations.values.last;
         _driverEndController.text = _mockLocations.keys.last;
       }
+      // Going online sets the route as "manually set" for filtering purposes
+      setState(() => _driverRouteManuallySet = true);
     }
     setState(() => _isOnline = online);
     final userId = _supabase.auth.currentUser?.id;
@@ -895,13 +899,14 @@ class _HomeScreenState extends State<HomeScreen> {
 
       setState(() {
         List<Map<String, dynamic>> rawRequests = List<Map<String, dynamic>>.from(data);
-        if (_driverRouteStart != null && _driverRouteEnd != null) {
+        // Only apply distance filter if driver has manually set their commute route
+        if (_driverRouteManuallySet && _driverRouteStart != null && _driverRouteEnd != null) {
           rawRequests = rawRequests.where((req) {
             final reqStart = LatLng(double.parse(req['pickup_latitude'].toString()), double.parse(req['pickup_longitude'].toString()));
             final reqEnd = LatLng(double.parse(req['drop_latitude'].toString()), double.parse(req['drop_longitude'].toString()));
             final distStart = _getDistanceKm(_driverRouteStart!, reqStart);
             final distEnd = _getDistanceKm(_driverRouteEnd!, reqEnd);
-            return distStart <= 5.0 && distEnd <= 5.0; // Within 5km of start and end nodes
+            return distStart <= 5.0 && distEnd <= 5.0;
           }).toList();
         }
         _incomingRequests = rawRequests;
@@ -1786,7 +1791,10 @@ class _HomeScreenState extends State<HomeScreen> {
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppTheme.radiusMd), borderSide: BorderSide.none),
               ),
               onSubmitted: (v) {
-                _driverRouteStart = _mockLocations.values.first; // Mock mapping for prototype
+                setState(() {
+                  _driverRouteStart = _mockLocations.values.first;
+                  _driverRouteManuallySet = true;
+                });
               },
             ),
             const SizedBox(height: 8),
@@ -1800,7 +1808,10 @@ class _HomeScreenState extends State<HomeScreen> {
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppTheme.radiusMd), borderSide: BorderSide.none),
               ),
               onSubmitted: (v) {
-                _driverRouteEnd = _mockLocations.values.last; // Mock mapping for prototype
+                setState(() {
+                  _driverRouteEnd = _mockLocations.values.last;
+                  _driverRouteManuallySet = true;
+                });
               },
             ),
             const SizedBox(height: 16),
