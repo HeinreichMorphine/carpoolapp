@@ -1929,7 +1929,7 @@ class _HomeScreenState extends State<HomeScreen> {
           ],
           const SizedBox(height: 16),
           if (_isOnline) ...[
-            if (_incomingRequests.isEmpty)
+            if (_incomingRequests.isEmpty && _activeDriverRides.isEmpty)
               Center(
                 child: Padding(
                   padding: const EdgeInsets.symmetric(vertical: 40.0),
@@ -1940,92 +1940,94 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               )
             else ...[
-              Text('Incoming Requests', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Theme.of(context).colorScheme.onSurface)),
-              const SizedBox(height: 12),
-              SizedBox(
-                height: 180,
-                child: ListView.builder(
-                  shrinkWrap: true,
-                  itemCount: _incomingRequests.length,
-                  itemBuilder: (ctx, idx) {
-                    final req = _incomingRequests[idx];
-                    return Container(
-                      margin: const EdgeInsets.only(bottom: 12),
-                      decoration: BoxDecoration(
-                        color: Theme.of(context).colorScheme.surfaceContainerHighest,
-                        borderRadius: BorderRadius.circular(AppTheme.radiusLg),
-                        border: Border.all(color: Theme.of(context).colorScheme.onSurface.withOpacity(0.05)),
-                      ),
-                      child: Padding(
-                        padding: const EdgeInsets.all(16.0),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              children: [
-                                const Icon(Icons.location_on, size: 16, color: AppTheme.primary),
-                                const SizedBox(width: 8),
-                                Expanded(child: Text('Pickup: ${req['pickup_address']}', maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: Theme.of(context).colorScheme.onSurface))),
-                              ],
-                            ),
-                            const SizedBox(height: 4),
-                            Row(
-                              children: [
-                                const Icon(Icons.flag, size: 16, color: AppTheme.accent),
-                                const SizedBox(width: 8),
-                                Expanded(child: Text('Dropoff: ${req['drop_address']}', maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: Theme.of(context).colorScheme.onSurface))),
-                              ],
-                            ),
-                            const SizedBox(height: 12),
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text('RM ${req['fare']}', style: const TextStyle(color: AppTheme.primary, fontWeight: FontWeight.bold, fontSize: 18)),
-                                    Text('${req['distance_km']}km • ${req['seats'] ?? 1} seats', style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6))),
-                                  ],
-                                ),
-                                Row(
-                                  children: [
-                                    OutlinedButton(
-                                      style: OutlinedButton.styleFrom(
-                                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppTheme.radiusPill)),
-                                        side: BorderSide(color: Theme.of(context).colorScheme.onSurface.withOpacity(0.2)),
-                                        padding: const EdgeInsets.symmetric(horizontal: 16),
-                                      ),
-                                      onPressed: () => _updateRideStatus(req['id'], 'cancelled'),
-                                      child: Text('Decline', style: TextStyle(color: Theme.of(context).colorScheme.onSurface)),
-                                    ),
-                                    const SizedBox(width: 8),
-                                    ElevatedButton(
-                                      style: ElevatedButton.styleFrom(
-                                        backgroundColor: AppTheme.primary,
-                                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppTheme.radiusPill)),
-                                        padding: const EdgeInsets.symmetric(horizontal: 16),
-                                      ),
-                                      onPressed: () {
-                                        setState(() {
-                                          req['status'] = 'accepted';
-                                          _activeDriverRides.add(req);
-                                          _incomingRequests.removeWhere((r) => r['id'] == req['id']);
-                                        });
-                                        _updateRideStatus(req['id'], 'accepted');
-                                      },
-                                      child: const Text('Accept', style: TextStyle(fontWeight: FontWeight.bold)),
-                                    ),
-                                  ],
-                                ),
-                              ],
-                            ),
-                          ],
+              if (_incomingRequests.isNotEmpty) ...[
+                Text('Incoming Requests', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Theme.of(context).colorScheme.onSurface)),
+                const SizedBox(height: 12),
+                SizedBox(
+                  height: 180,
+                  child: ListView.builder(
+                    shrinkWrap: true,
+                    itemCount: _incomingRequests.length,
+                    itemBuilder: (ctx, idx) {
+                      final req = _incomingRequests[idx];
+                      return Container(
+                        margin: const EdgeInsets.only(bottom: 12),
+                        decoration: BoxDecoration(
+                          color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                          borderRadius: BorderRadius.circular(AppTheme.radiusLg),
+                          border: Border.all(color: Theme.of(context).colorScheme.onSurface.withOpacity(0.05)),
                         ),
-                      ),
-                    );
-                  },
+                        child: Padding(
+                          padding: const EdgeInsets.all(16.0),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  const Icon(Icons.location_on, size: 16, color: AppTheme.primary),
+                                  const SizedBox(width: 8),
+                                  Expanded(child: Text('Pickup: ${req['pickup_address']}', maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: Theme.of(context).colorScheme.onSurface))),
+                                ],
+                              ),
+                              const SizedBox(height: 4),
+                              Row(
+                                children: [
+                                  const Icon(Icons.flag, size: 16, color: AppTheme.accent),
+                                  const SizedBox(width: 8),
+                                  Expanded(child: Text('Dropoff: ${req['drop_address']}', maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: Theme.of(context).colorScheme.onSurface))),
+                                ],
+                              ),
+                              const SizedBox(height: 12),
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text('RM ${req['fare']}', style: const TextStyle(color: AppTheme.primary, fontWeight: FontWeight.bold, fontSize: 18)),
+                                      Text('${req['distance_km']}km • ${req['seats'] ?? 1} seats', style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6))),
+                                    ],
+                                  ),
+                                  Row(
+                                    children: [
+                                      OutlinedButton(
+                                        style: OutlinedButton.styleFrom(
+                                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppTheme.radiusPill)),
+                                          side: const BorderSide(color: Colors.red),
+                                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                                        ),
+                                        onPressed: () => _updateRideStatus(req['id'], 'cancelled'),
+                                        child: const Text('Reject', style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      ElevatedButton(
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor: AppTheme.primary,
+                                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppTheme.radiusPill)),
+                                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                                        ),
+                                        onPressed: () {
+                                          setState(() {
+                                            req['status'] = 'accepted';
+                                            _activeDriverRides.add(req);
+                                            _incomingRequests.removeWhere((r) => r['id'] == req['id']);
+                                          });
+                                          _updateRideStatus(req['id'], 'accepted');
+                                        },
+                                        child: const Text('Accept', style: TextStyle(fontWeight: FontWeight.bold)),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    },
+                  ),
                 ),
-              ),
+              ],
             ]
           ],
           if (_activeDriverRides.isNotEmpty) ...[
@@ -2096,7 +2098,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppTheme.radiusPill)),
                           ),
                           onPressed: () => _updateRideStatus(ride['id'], 'cancelled'),
-                          child: const Text('Cancel Trip', style: TextStyle(fontWeight: FontWeight.bold)),
+                          child: const Text('Cancel Booking', style: TextStyle(fontWeight: FontWeight.bold)),
                         ),
                       ),
                     ],
