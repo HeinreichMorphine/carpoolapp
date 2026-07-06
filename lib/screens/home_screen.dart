@@ -101,6 +101,10 @@ class _HomeScreenState extends State<HomeScreen> {
   final TextEditingController _driverEndController = TextEditingController();
   List<Map<String, dynamic>> _incomingRequests = [];
 
+  // Decoupled driver earnings state tracking
+  double _maxDriverRouteDistance = 0.0;
+  double _maxDriverRouteDuration = 0.0;
+
   @override
   void initState() {
     super.initState();
@@ -168,6 +172,10 @@ class _HomeScreenState extends State<HomeScreen> {
           .order('created_at', ascending: false);
       setState(() {
         _activeDriverRides = List<Map<String, dynamic>>.from(data);
+        if (_activeDriverRides.isEmpty) {
+          _maxDriverRouteDistance = 0.0;
+          _maxDriverRouteDuration = 0.0;
+        }
       });
       _updateCarpoolRoute();
     } catch (e) {
@@ -1386,6 +1394,34 @@ class _HomeScreenState extends State<HomeScreen> {
           final rProfile = await _supabase.from('profiles').select('wallet_balance').eq('id', rId).single();
           final currentBal = double.tryParse(rProfile['wallet_balance']?.toString() ?? '0') ?? 0.0;
           await _supabase.from('profiles').update({'wallet_balance': currentBal - fareAmount}).eq('id', rId);
+        }
+
+        if (userId != null) {
+          final isLastRide = _activeDriverRides.length <= 1;
+          
+          if (isLastRide) {
+            double actualKm = _maxDriverRouteDistance;
+            double actualMins = _maxDriverRouteDuration;
+            
+            if (actualKm <= 0.0) {
+              actualKm = double.tryParse(targetRide['distance_km']?.toString() ?? '0.0') ?? 0.0;
+            }
+            if (actualMins <= 0.0) {
+              actualMins = double.tryParse(targetRide['duration_mins']?.toString() ?? '0.0') ?? 0.0;
+            }
+
+            final driverEarnings = 5.00 + (actualKm * 1.20) + (actualMins * 0.30);
+            
+            final dProfile = await _supabase.from('profiles').select('wallet_balance').eq('id', userId).single();
+            final currentDriverBal = double.tryParse(dProfile['wallet_balance']?.toString() ?? '0.0') ?? 0.0;
+            
+            await _supabase.from('profiles').update({
+              'wallet_balance': double.parse((currentDriverBal + driverEarnings).toStringAsFixed(2)),
+            }).eq('id', userId);
+            
+            _maxDriverRouteDistance = 0.0;
+            _maxDriverRouteDuration = 0.0;
+          }
         }
       }
 
@@ -2683,9 +2719,29 @@ class _HomeScreenState extends State<HomeScreen> {
           final feature = data['features'][0];
           final coordsList = feature['geometry']['coordinates'] as List;
           final newPoints = coordsList.map((c) => LatLng(c[1], c[0])).toList();
+          
+          final summary = feature['properties']?['summary'];
+          double routeDist = 0.0;
+          double routeDur = 0.0;
+          if (summary != null) {
+            final distVal = summary['distance'];
+            final durVal = summary['duration'];
+            if (distVal != null) {
+              routeDist = (distVal as num).toDouble() / 1000.0;
+            }
+            if (durVal != null) {
+              routeDur = (durVal as num).toDouble() / 60.0;
+            }
+          }
 
           setState(() {
             _polylinePoints = newPoints;
+            if (routeDist > _maxDriverRouteDistance) {
+              _maxDriverRouteDistance = routeDist;
+            }
+            if (routeDur > _maxDriverRouteDuration) {
+              _maxDriverRouteDuration = routeDur;
+            }
           });
 
           // Fit camera to the full multi-stop route
