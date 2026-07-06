@@ -77,14 +77,25 @@ class _HomeScreenState extends State<HomeScreen> {
   Map<String, dynamic>? _routeEstimate;
   List<LatLng> _polylinePoints = [];
 
-  // Active Ride Info
+  // Active Ride Info (Rider)
   Map<String, dynamic>? _activeRide;
+  
+  // Active Rides (Driver)
+  List<Map<String, dynamic>> _activeDriverRides = [];
+  
   RealtimeChannel? _rideSubscription;
   LatLng? _driverLocation;
   Timer? _gpsTimer;
 
+  // Scheduled Time
+  DateTime? _scheduledTime;
+
   // Driver states
   bool _isOnline = false;
+  LatLng? _driverRouteStart;
+  LatLng? _driverRouteEnd;
+  final TextEditingController _driverStartController = TextEditingController();
+  final TextEditingController _driverEndController = TextEditingController();
   List<Map<String, dynamic>> _incomingRequests = [];
 
   @override
@@ -102,6 +113,8 @@ class _HomeScreenState extends State<HomeScreen> {
     }
     _pickupController.dispose();
     _dropController.dispose();
+    _driverStartController.dispose();
+    _driverEndController.dispose();
     super.dispose();
   }
 
@@ -124,6 +137,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
       if (_profile?['role'] == 'driver') {
         _listenToRideRequests();
+        _loadActiveDriverRides();
         if (_isOnline) _startGPSDaemon();
       } else {
         _checkForActiveRide();
@@ -132,6 +146,25 @@ class _HomeScreenState extends State<HomeScreen> {
       debugPrint('Error loading profile: $e');
     } finally {
       setState(() => _loadingProfile = false);
+    }
+  }
+
+  Future<void> _loadActiveDriverRides() async {
+    final userId = _supabase.auth.currentUser?.id;
+    if (userId == null) return;
+    try {
+      final data = await _supabase
+          .from('rides')
+          .select('*')
+          .eq('driver_id', userId)
+          .neq('status', 'completed')
+          .neq('status', 'cancelled')
+          .order('created_at', ascending: false);
+      setState(() {
+        _activeDriverRides = List<Map<String, dynamic>>.from(data);
+      });
+    } catch (e) {
+      debugPrint('Error loading active driver rides: $e');
     }
   }
 
@@ -424,7 +457,7 @@ class _HomeScreenState extends State<HomeScreen> {
         'status': 'requested',
         'pickup_latitude': pLoc.latitude,
         'pickup_longitude': pLoc.longitude,
-        'pickup_address': _pickupAddress ?? 'Custom Pickup Location',
+        'pickup_address': (_scheduledTime != null ? '[Schedule: ${_scheduledTime!.day}/${_scheduledTime!.month} ${_scheduledTime!.hour}:${_scheduledTime!.minute.toString().padLeft(2, '0')}] ' : '') + (_pickupAddress ?? 'Custom Pickup Location'),
         'drop_latitude': dLoc.latitude,
         'drop_longitude': dLoc.longitude,
         'drop_address': _dropAddress ?? 'Custom Destination',
@@ -712,6 +745,16 @@ class _HomeScreenState extends State<HomeScreen> {
   // --------------------------------------------------
 
   Future<void> _toggleOnline(bool online) async {
+    if (online) {
+      if (_driverRouteStart == null) {
+        _driverRouteStart = _mockLocations.values.first;
+        _driverStartController.text = _mockLocations.keys.first;
+      }
+      if (_driverRouteEnd == null) {
+        _driverRouteEnd = _mockLocations.values.last;
+        _driverEndController.text = _mockLocations.keys.last;
+      }
+    }
     setState(() => _isOnline = online);
     final userId = _supabase.auth.currentUser?.id;
     if (userId == null) return;
@@ -770,6 +813,17 @@ class _HomeScreenState extends State<HomeScreen> {
     _loadIncomingRequests();
   }
 
+  double _getDistanceKm(LatLng p1, LatLng p2) {
+    final R = 6371; // Earth radius in km
+    final dLat = (p2.latitude - p1.latitude) * math.pi / 180;
+    final dLon = (p2.longitude - p1.longitude) * math.pi / 180;
+    final a = math.sin(dLat / 2) * math.sin(dLat / 2) +
+              math.cos(p1.latitude * math.pi / 180) * math.cos(p2.latitude * math.pi / 180) *
+              math.sin(dLon / 2) * math.sin(dLon / 2);
+    final c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a));
+    return R * c;
+  }
+
   Future<void> _loadIncomingRequests() async {
     try {
       final data = await _supabase
@@ -779,7 +833,17 @@ class _HomeScreenState extends State<HomeScreen> {
           .order('created_at', ascending: false);
 
       setState(() {
-        _incomingRequests = List<Map<String, dynamic>>.from(data);
+        List<Map<String, dynamic>> rawRequests = List<Map<String, dynamic>>.from(data);
+        if (_driverRouteStart != null && _driverRouteEnd != null) {
+          rawRequests = rawRequests.where((req) {
+            final reqStart = LatLng(double.parse(req['pickup_latitude'].toString()), double.parse(req['pickup_longitude'].toString()));
+            final reqEnd = LatLng(double.parse(req['drop_latitude'].toString()), double.parse(req['drop_longitude'].toString()));
+            final distStart = _getDistanceKm(_driverRouteStart!, reqStart);
+            final distEnd = _getDistanceKm(_driverRouteEnd!, reqEnd);
+            return distStart <= 5.0 && distEnd <= 5.0; // Within 5km of start and end nodes
+          }).toList();
+        }
+        _incomingRequests = rawRequests;
       });
     } catch (e) {
       debugPrint('Error loading ride offers: $e');
@@ -802,12 +866,14 @@ class _HomeScreenState extends State<HomeScreen> {
 
       // Handle automatic wallet deduction on completion
       if (status == 'completed') {
-        final rId = _activeRide?['rider_id'];
-        final fareAmount = double.parse(_activeRide?['fare'].toString() ?? '0.0');
+        final targetRide = _activeDriverRides.firstWhere((r) => r['id'] == rideId, orElse: () => _activeRide ?? {});
+        final rId = targetRide['rider_id'];
+        final fareAmount = double.tryParse(targetRide['fare']?.toString() ?? '0.0') ?? 0.0;
+        
         if (rId != null && fareAmount > 0) {
           // Get rider balance
           final rProfile = await _supabase.from('profiles').select('wallet_balance').eq('id', rId).single();
-          final currentBal = double.parse(rProfile['wallet_balance'].toString());
+          final currentBal = double.tryParse(rProfile['wallet_balance']?.toString() ?? '0') ?? 0.0;
           await _supabase.from('profiles').update({'wallet_balance': currentBal - fareAmount}).eq('id', rId);
         }
       }
@@ -1407,7 +1473,61 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ],
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: 16),
+            
+            // Scheduled Ride Picker
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      side: BorderSide(color: Theme.of(context).colorScheme.onSurface.withOpacity(0.2)),
+                    ),
+                    icon: Icon(Icons.calendar_today, size: 18, color: Theme.of(context).colorScheme.onSurface),
+                    label: Text(
+                      _scheduledTime != null 
+                        ? '${_scheduledTime!.day}/${_scheduledTime!.month} ${_scheduledTime!.hour}:${_scheduledTime!.minute.toString().padLeft(2, '0')}'
+                        : 'Schedule Later',
+                      style: TextStyle(color: Theme.of(context).colorScheme.onSurface),
+                    ),
+                    onPressed: () async {
+                      final date = await showDatePicker(
+                        context: context,
+                        initialDate: DateTime.now(),
+                        firstDate: DateTime.now(),
+                        lastDate: DateTime.now().add(const Duration(days: 30)),
+                      );
+                      if (date != null) {
+                        final time = await showTimePicker(
+                          context: context,
+                          initialTime: TimeOfDay.now(),
+                        );
+                        if (time != null) {
+                          setState(() {
+                            _scheduledTime = DateTime(date.year, date.month, date.day, time.hour, time.minute);
+                          });
+                        }
+                      }
+                    },
+                  ),
+                ),
+                if (_scheduledTime != null) ...[
+                  const SizedBox(width: 8),
+                  Container(
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                      borderRadius: BorderRadius.circular(AppTheme.radiusMd),
+                    ),
+                    child: IconButton(
+                      icon: const Icon(Icons.clear, color: Colors.red),
+                      onPressed: () => setState(() => _scheduledTime = null),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+            const SizedBox(height: 16),
             
             SizedBox(
               width: double.infinity,
@@ -1485,6 +1605,40 @@ class _HomeScreenState extends State<HomeScreen> {
             ],
           ),
           const SizedBox(height: 16),
+          if (!_isOnline) ...[
+            Text('Set Your Commute Route', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Theme.of(context).colorScheme.onSurface)),
+            const SizedBox(height: 8),
+            Text('We will match you with riders along this path.', style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6))),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _driverStartController,
+              decoration: InputDecoration(
+                hintText: 'Start Location',
+                prefixIcon: const Icon(Icons.location_on, color: AppTheme.primary),
+                filled: true,
+                fillColor: Theme.of(context).colorScheme.surfaceContainerHighest,
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppTheme.radiusMd), borderSide: BorderSide.none),
+              ),
+              onSubmitted: (v) {
+                _driverRouteStart = _mockLocations.values.first; // Mock mapping for prototype
+              },
+            ),
+            const SizedBox(height: 8),
+            TextField(
+              controller: _driverEndController,
+              decoration: InputDecoration(
+                hintText: 'End Destination',
+                prefixIcon: const Icon(Icons.flag, color: AppTheme.accent),
+                filled: true,
+                fillColor: Theme.of(context).colorScheme.surfaceContainerHighest,
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppTheme.radiusMd), borderSide: BorderSide.none),
+              ),
+              onSubmitted: (v) {
+                _driverRouteEnd = _mockLocations.values.last; // Mock mapping for prototype
+              },
+            ),
+            const SizedBox(height: 16),
+          ],
           if (_isOnline) ...[
             if (_incomingRequests.isEmpty)
               Center(
@@ -1564,7 +1718,9 @@ class _HomeScreenState extends State<HomeScreen> {
                                       ),
                                       onPressed: () {
                                         setState(() {
-                                          _activeRide = req;
+                                          req['status'] = 'accepted';
+                                          _activeDriverRides.add(req);
+                                          _incomingRequests.removeWhere((r) => r['id'] == req['id']);
                                         });
                                         _updateRideStatus(req['id'], 'accepted');
                                       },
@@ -1583,81 +1739,99 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ]
           ],
-          if (_activeRide != null && _activeRide!['status'] != 'requested') ...[
+          if (_activeDriverRides.isNotEmpty) ...[
             Divider(color: Theme.of(context).colorScheme.onSurface.withOpacity(0.1)),
             const SizedBox(height: 8),
-            Text('Active Trip (Rider ID: ${_activeRide!['rider_id'].toString().substring(0, 5)})', style: const TextStyle(fontWeight: FontWeight.bold, color: AppTheme.primary)),
+            Text('Active Trips', style: TextStyle(fontWeight: FontWeight.bold, color: Theme.of(context).colorScheme.onSurface, fontSize: 16)),
             const SizedBox(height: 8),
-            Row(
-              children: [
-                const Icon(Icons.location_on, size: 16, color: AppTheme.primary),
-                const SizedBox(width: 8),
-                Expanded(child: Text(_activeRide!['pickup_address'], maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: Theme.of(context).colorScheme.onSurface))),
-              ],
-            ),
-            const SizedBox(height: 4),
-            Row(
-              children: [
-                const Icon(Icons.flag, size: 16, color: AppTheme.accent),
-                const SizedBox(width: 8),
-                Expanded(child: Text(_activeRide!['drop_address'], maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: Theme.of(context).colorScheme.onSurface))),
-              ],
-            ),
-            const SizedBox(height: 16),
-            Row(
-              children: [
-                Expanded(
-                  child: _buildDriverActionButton(),
+            ..._activeDriverRides.map((ride) {
+              return Container(
+                margin: const EdgeInsets.only(bottom: 16),
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                  borderRadius: BorderRadius.circular(AppTheme.radiusLg),
+                  border: Border.all(color: Theme.of(context).colorScheme.onSurface.withOpacity(0.05)),
                 ),
-                const SizedBox(width: 12),
-                Container(
-                  decoration: BoxDecoration(
-                    color: Theme.of(context).colorScheme.surfaceContainerHighest,
-                    borderRadius: BorderRadius.circular(AppTheme.radiusMd),
-                  ),
-                  child: IconButton(
-                    icon: const Icon(Icons.chat_bubble_outline),
-                    color: AppTheme.primary,
-                    onPressed: () => Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (_) => ChatScreen(rideId: _activeRide!['id'])),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Rider ID: ${ride['rider_id'].toString().substring(0, 5)}', style: const TextStyle(fontWeight: FontWeight.bold, color: AppTheme.primary)),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        const Icon(Icons.location_on, size: 16, color: AppTheme.primary),
+                        const SizedBox(width: 8),
+                        Expanded(child: Text(ride['pickup_address'], maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: Theme.of(context).colorScheme.onSurface))),
+                      ],
                     ),
-                  ),
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        const Icon(Icons.flag, size: 16, color: AppTheme.accent),
+                        const SizedBox(width: 8),
+                        Expanded(child: Text(ride['drop_address'], maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: Theme.of(context).colorScheme.onSurface))),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _buildDriverActionButton(ride),
+                        ),
+                        const SizedBox(width: 12),
+                        Container(
+                          decoration: BoxDecoration(
+                            color: Theme.of(context).colorScheme.surface,
+                            borderRadius: BorderRadius.circular(AppTheme.radiusMd),
+                          ),
+                          child: IconButton(
+                            icon: const Icon(Icons.chat_bubble_outline),
+                            color: AppTheme.primary,
+                            onPressed: () => Navigator.push(
+                              context,
+                              MaterialPageRoute(builder: (_) => ChatScreen(rideId: ride['id'])),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    if (ride['status'] == 'accepted' || ride['status'] == 'arrived') ...[
+                      const SizedBox(height: 12),
+                      SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton(
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: Colors.red,
+                            side: const BorderSide(color: Colors.red),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppTheme.radiusPill)),
+                          ),
+                          onPressed: () => _updateRideStatus(ride['id'], 'cancelled'),
+                          child: const Text('Cancel Trip', style: TextStyle(fontWeight: FontWeight.bold)),
+                        ),
+                      ),
+                    ],
+                  ],
                 ),
-              ],
-            ),
-            if (_activeRide!['status'] == 'accepted' || _activeRide!['status'] == 'arrived') ...[
-              const SizedBox(height: 12),
-              SizedBox(
-                width: double.infinity,
-                child: OutlinedButton(
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: Colors.red,
-                    side: const BorderSide(color: Colors.red),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppTheme.radiusPill)),
-                  ),
-                  onPressed: () => _updateRideStatus(_activeRide!['id'], 'cancelled'),
-                  child: const Text('Cancel Trip', style: TextStyle(fontWeight: FontWeight.bold)),
-                ),
-              ),
-            ],
+              );
+            }).toList(),
           ]
         ],
       ),
     );
   }
 
-  Widget _buildDriverActionButton() {
+  Widget _buildDriverActionButton(Map<String, dynamic> ride) {
     String label = '';
     String nextStatus = '';
     
-    if (_activeRide!['status'] == 'accepted') {
+    if (ride['status'] == 'accepted') {
       label = 'Arrived at Pickup';
       nextStatus = 'arrived';
-    } else if (_activeRide!['status'] == 'arrived') {
+    } else if (ride['status'] == 'arrived') {
       label = 'Start Trip';
       nextStatus = 'picked_up';
-    } else if (_activeRide!['status'] == 'picked_up') {
+    } else if (ride['status'] == 'picked_up') {
       label = 'Complete Trip';
       nextStatus = 'completed';
     } else {
@@ -1666,12 +1840,12 @@ class _HomeScreenState extends State<HomeScreen> {
 
     return ElevatedButton(
       style: ElevatedButton.styleFrom(
-        padding: const EdgeInsets.symmetric(vertical: 16),
-        backgroundColor: AppTheme.primary,
+        backgroundColor: nextStatus == 'completed' ? Colors.green : AppTheme.primary,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppTheme.radiusPill)),
+        padding: const EdgeInsets.symmetric(vertical: 14),
       ),
-      onPressed: () => _updateRideStatus(_activeRide!['id'], nextStatus),
-      child: Text(label, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+      onPressed: () => _updateRideStatus(ride['id'], nextStatus),
+      child: Text(label, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
     );
   }
 }
