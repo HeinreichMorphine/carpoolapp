@@ -893,22 +893,35 @@ class _HomeScreenState extends State<HomeScreen> {
           .eq('status', 'requested')
           .order('created_at', ascending: false);
 
+      final List<Map<String, dynamic>> rawRequestsList = List<Map<String, dynamic>>.from(data);
+      debugPrint('LOAD_OFFERS: Supabase returned ${rawRequestsList.length} requested rides.');
+
       setState(() {
-        List<Map<String, dynamic>> rawRequests = List<Map<String, dynamic>>.from(data);
+        List<Map<String, dynamic>> rawRequests = rawRequestsList;
         // Only apply distance filter if driver has manually set their commute route
-        if (_driverRouteManuallySet && _driverRouteStart != null && _driverRouteEnd != null) {
+        final applyFilter = _driverRouteManuallySet && _driverRouteStart != null && _driverRouteEnd != null && _driverStartController.text.isNotEmpty && _driverEndController.text.isNotEmpty;
+        debugPrint('LOAD_OFFERS: applyFilter=$applyFilter (manuallySet=$_driverRouteManuallySet, start=$_driverRouteStart, end=$_driverRouteEnd, startText="${_driverStartController.text}", endText="${_driverEndController.text}")');
+        
+        if (applyFilter) {
           rawRequests = rawRequests.where((req) {
             final reqStart = LatLng(double.parse(req['pickup_latitude'].toString()), double.parse(req['pickup_longitude'].toString()));
             final reqEnd = LatLng(double.parse(req['drop_latitude'].toString()), double.parse(req['drop_longitude'].toString()));
             final distStart = _getDistanceKm(_driverRouteStart!, reqStart);
             final distEnd = _getDistanceKm(_driverRouteEnd!, reqEnd);
+            debugPrint('LOAD_OFFERS: Filter check for ride ${req['id']}: distStart=${distStart.toStringAsFixed(2)}km, distEnd=${distEnd.toStringAsFixed(2)}km');
             return distStart <= 5.0 && distEnd <= 5.0;
           }).toList();
         }
         _incomingRequests = rawRequests;
+        debugPrint('LOAD_OFFERS: Final _incomingRequests count = ${_incomingRequests.length}');
       });
-    } catch (e) {
-      debugPrint('Error loading ride offers: $e');
+    } catch (e, stack) {
+      debugPrint('Error loading ride offers: $e\n$stack');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error loading requests: $e'), backgroundColor: Colors.red),
+        );
+      }
     }
   }
 
@@ -1830,32 +1843,46 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ),
           const SizedBox(height: 16),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text(
-                    'Driver Status',
-                    style: TextStyle(fontFamily: 'Inter', fontSize: 14, color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6)),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Driver Status',
+                        style: TextStyle(fontFamily: 'Inter', fontSize: 14, color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6)),
+                      ),
+                      Text(
+                        _isOnline ? 'ONLINE' : 'OFFLINE',
+                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 24, color: _isOnline ? AppTheme.primary : Theme.of(context).colorScheme.onSurface),
+                      ),
+                    ],
                   ),
-                  Text(
-                    _isOnline ? 'ONLINE' : 'OFFLINE',
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 24, color: _isOnline ? AppTheme.primary : Theme.of(context).colorScheme.onSurface),
+                  Row(
+                    children: [
+                      if (_isOnline)
+                        IconButton(
+                          icon: const Icon(Icons.refresh, color: AppTheme.primary),
+                          tooltip: 'Refresh Requests',
+                          onPressed: () {
+                            _loadIncomingRequests();
+                            _loadActiveDriverRides();
+                            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Refreshing rides...')));
+                          },
+                        ),
+                      Switch(
+                        value: _isOnline,
+                        onChanged: _toggleOnline,
+                        activeColor: Colors.white,
+                        activeTrackColor: AppTheme.primary,
+                        inactiveThumbColor: Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
+                        inactiveTrackColor: Theme.of(context).colorScheme.surfaceContainerHighest,
+                      ),
+                    ],
                   ),
                 ],
               ),
-              Switch(
-                value: _isOnline,
-                onChanged: _toggleOnline,
-                activeColor: Colors.white,
-                activeTrackColor: AppTheme.primary,
-                        inactiveThumbColor: Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
-                inactiveTrackColor: Theme.of(context).colorScheme.surfaceContainerHighest,
-              ),
-            ],
-          ),
           const SizedBox(height: 16),
           // Commute route section — editable when offline, read-only summary when online
           Text('Commute Route', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Theme.of(context).colorScheme.onSurface)),
