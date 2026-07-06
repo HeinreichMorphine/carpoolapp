@@ -456,7 +456,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _requestRide({required bool simulated}) async {
-    if (_routeEstimate == null || _pickupLatLng == null || _dropLatLng == null) return;
+    if (_pickupLatLng == null || _dropLatLng == null) return;
     setState(() => _calculatingRoute = true);
 
     final pLoc = _pickupLatLng!;
@@ -464,8 +464,9 @@ class _HomeScreenState extends State<HomeScreen> {
 
     try {
       final userId = _supabase.auth.currentUser?.id;
-      final costPerSeat = _routeEstimate!['cost_per_seat'];
-      final platformFee = 1.50;
+      // Use calculated estimate if available, otherwise fall back to rough defaults
+      final costPerSeat = _routeEstimate?['cost_per_seat'] ?? 5.0;
+      const platformFee = 1.50;
       final totalFare = (costPerSeat * _seatsRequested) + platformFee;
 
       // Insert Ride
@@ -478,17 +479,9 @@ class _HomeScreenState extends State<HomeScreen> {
         'drop_latitude': dLoc.latitude,
         'drop_longitude': dLoc.longitude,
         'drop_address': _dropAddress ?? 'Custom Destination',
-        'distance_km': _routeEstimate!['distance_km'],
-        'duration_mins': _routeEstimate!['duration_mins'],
+        'distance_km': _routeEstimate?['distance_km'] ?? 0,
+        'duration_mins': _routeEstimate?['duration_mins'] ?? 0,
         'fare': totalFare,
-        // TODO: Uncomment these lines once you've run the ALTER TABLE SQL script in your Supabase Dashboard!
-        // 'cost_per_seat': costPerSeat,
-        // 'seats': _seatsRequested,
-        // 'platform_fee': platformFee,
-        // 'chatty': _prefChatty,
-        // 'pets_allowed': _prefPets,
-        // 'music_allowed': _prefMusic,
-        // 'smoking_allowed': _prefSmoking,
         'women_only': _womenOnly,
         'trust_circle_domain': simulated ? 'simulated' : (_corporateEmailDomain.isNotEmpty ? _corporateEmailDomain : null),
       }).select().single();
@@ -500,20 +493,29 @@ class _HomeScreenState extends State<HomeScreen> {
       // Call Telegram bot webhook for new requested ride
       _notifyTelegram(rideRes['id'], 'requested');
 
-      // Call match-driver Edge Function to assign driver
-      final matchRes = await _supabase.functions.invoke('match-driver', body: {
-        'ride_id': rideRes['id'],
-      });
-
-      if (matchRes.status == 200 && matchRes.data['success'] == true) {
-        _subscribeToRideUpdates(rideRes['id']);
-      } else {
-        if (!mounted) return;
+      if (simulated) {
+        // Simulated Book: skip real driver matching, go straight to dummy driver simulation
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('No real drivers nearby. Simulating a Dummy Driver...')),
+          const SnackBar(content: Text('Simulated booking — dummy driver will accept shortly...')),
         );
         _subscribeToRideUpdates(rideRes['id']);
         _simulateDummyDriver(rideRes['id']);
+      } else {
+        // Real Book: try to match a real online driver
+        final matchRes = await _supabase.functions.invoke('match-driver', body: {
+          'ride_id': rideRes['id'],
+        });
+
+        if (matchRes.status == 200 && matchRes.data['success'] == true) {
+          _subscribeToRideUpdates(rideRes['id']);
+        } else {
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Request sent — waiting for a nearby driver to accept...')),
+          );
+          _subscribeToRideUpdates(rideRes['id']);
+          // Do NOT auto-simulate for Real Book — wait for a real driver
+        }
       }
     } catch (e) {
       if (!mounted) return;
