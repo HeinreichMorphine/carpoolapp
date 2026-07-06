@@ -969,7 +969,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 'Driver Dashboard',
                 style: TextStyle(fontWeight: FontWeight.bold, color: Theme.of(context).colorScheme.onSurface),
               )
-            : Image.asset('assets/images/logo.jpeg', height: 32, fit: BoxFit.contain),
+            : Image.asset('assets/images/jomride.jpeg', height: 32, fit: BoxFit.contain),
         backgroundColor: Colors.transparent,
         elevation: 0,
         actions: [

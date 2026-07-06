@@ -192,7 +192,7 @@ class _AuthScreenState extends State<AuthScreen> {
               // Brand Logo
               Center(
                 child: Image.asset(
-                  'assets/images/logo.jpeg',
+                  'assets/images/jomride.jpeg',
                   height: 100,
                   fit: BoxFit.contain,
                 ),
