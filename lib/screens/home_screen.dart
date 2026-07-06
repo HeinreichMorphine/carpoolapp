@@ -1785,36 +1785,79 @@ class _HomeScreenState extends State<HomeScreen> {
             TextField(
               controller: _driverStartController,
               decoration: InputDecoration(
-                hintText: 'Start Location',
+                hintText: 'Search start location...',
                 prefixIcon: const Icon(Icons.location_on, color: AppTheme.primary),
                 filled: true,
                 fillColor: Theme.of(context).colorScheme.surfaceContainerHighest,
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppTheme.radiusMd), borderSide: BorderSide.none),
+                focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppTheme.radiusMd), borderSide: const BorderSide(color: AppTheme.primary)),
               ),
-              onSubmitted: (v) {
-                setState(() {
-                  _driverRouteStart = _mockLocations.values.first;
-                  _driverRouteManuallySet = true;
-                });
+              onChanged: (v) {
+                if (v.trim().length >= 3) _searchForAddress(v, 'driver_start');
               },
             ),
             const SizedBox(height: 8),
             TextField(
               controller: _driverEndController,
               decoration: InputDecoration(
-                hintText: 'End Destination',
+                hintText: 'Search end destination...',
                 prefixIcon: const Icon(Icons.flag, color: AppTheme.accent),
                 filled: true,
                 fillColor: Theme.of(context).colorScheme.surfaceContainerHighest,
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppTheme.radiusMd), borderSide: BorderSide.none),
+                focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppTheme.radiusMd), borderSide: const BorderSide(color: AppTheme.accent)),
               ),
-              onSubmitted: (v) {
-                setState(() {
-                  _driverRouteEnd = _mockLocations.values.last;
-                  _driverRouteManuallySet = true;
-                });
+              onChanged: (v) {
+                if (v.trim().length >= 3) _searchForAddress(v, 'driver_end');
               },
             ),
+            // Search results dropdown for driver fields
+            if (_searchingAddress && (_activeSearchField == 'driver_start' || _activeSearchField == 'driver_end'))
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 8.0),
+                child: Center(child: CircularProgressIndicator(color: AppTheme.primary)),
+              )
+            else if (_searchResults.isNotEmpty && (_activeSearchField == 'driver_start' || _activeSearchField == 'driver_end'))
+              Container(
+                constraints: const BoxConstraints(maxHeight: 200),
+                margin: const EdgeInsets.only(top: 4),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                  borderRadius: BorderRadius.circular(AppTheme.radiusMd),
+                  boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.2), blurRadius: 8)],
+                ),
+                child: ListView.builder(
+                  shrinkWrap: true,
+                  itemCount: _searchResults.length,
+                  itemBuilder: (context, idx) {
+                    final item = _searchResults[idx];
+                    return ListTile(
+                      dense: true,
+                      leading: Icon(
+                        _activeSearchField == 'driver_start' ? Icons.location_on : Icons.flag,
+                        size: 16,
+                        color: _activeSearchField == 'driver_start' ? AppTheme.primary : AppTheme.accent,
+                      ),
+                      title: Text(item['display_name'], maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 13)),
+                      onTap: () {
+                        setState(() {
+                          final latLng = LatLng(item['lat'], item['lon']);
+                          if (_activeSearchField == 'driver_start') {
+                            _driverRouteStart = latLng;
+                            _driverStartController.text = item['display_name'];
+                          } else {
+                            _driverRouteEnd = latLng;
+                            _driverEndController.text = item['display_name'];
+                          }
+                          _driverRouteManuallySet = true;
+                          _searchResults = [];
+                          _activeSearchField = null;
+                        });
+                      },
+                    );
+                  },
+                ),
+              ),
           ] else ...[
             // Online: show compact read-only route summary
             Container(
