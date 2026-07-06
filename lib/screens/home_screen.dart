@@ -1544,6 +1544,52 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
 
           const SizedBox(height: 16),
+
+          // If both locations set but no estimate yet, show Get Estimate button
+          if (!_calculatingRoute && _routeEstimate == null && _pickupLatLng != null && _dropLatLng != null) ...[
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  side: const BorderSide(color: AppTheme.primary),
+                ),
+                icon: const Icon(Icons.route, color: AppTheme.primary),
+                label: const Text('Get Fare Estimate', style: TextStyle(color: AppTheme.primary, fontWeight: FontWeight.bold)),
+                onPressed: _calculateRoute,
+              ),
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 18),
+                      backgroundColor: Colors.amber.shade800,
+                      foregroundColor: Colors.white,
+                    ),
+                    onPressed: () => _requestRide(simulated: true),
+                    child: const Text('Simulated Book', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 18),
+                      backgroundColor: AppTheme.primary,
+                      foregroundColor: Colors.white,
+                    ),
+                    onPressed: () => _requestRide(simulated: false),
+                    child: const Text('Real Book', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+          ],
+
           // Seats & Route Estimate Styled as a "Carpool" card
           if (_calculatingRoute)
             const Center(child: Padding(padding: EdgeInsets.all(20), child: CircularProgressIndicator(color: AppTheme.primary)))
