@@ -1747,7 +1747,109 @@ class _HomeScreenState extends State<HomeScreen> {
             const SizedBox(height: 8),
             Text('From: ${_activeRide!['pickup_address']}', style: TextStyle(color: Theme.of(context).colorScheme.onSurface)),
             Text('To: ${_activeRide!['drop_address']}', style: TextStyle(color: Theme.of(context).colorScheme.onSurface)),
-            Text('Fare: RM ${double.parse(_activeRide!['fare'].toString()).toStringAsFixed(2)}', style: const TextStyle(color: AppTheme.primary, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 12),
+            Builder(
+              builder: (context) {
+                final dist = double.tryParse(_activeRide!['distance_km']?.toString() ?? '0.0') ?? 0.0;
+                final mins = double.tryParse(_activeRide!['duration_mins']?.toString() ?? '0.0') ?? 0.0;
+                final distCost = dist * 1.20;
+                final timeCost = mins * 0.30;
+                final routeCost = distCost + timeCost;
+                final costPerSeat = math.max(5.0, routeCost);
+                final platformFee = 1.50;
+                final standardFare = costPerSeat + platformFee;
+                final currentFare = double.tryParse(_activeRide!['fare']?.toString() ?? '0.0') ?? 0.0;
+                
+                final hasDiscount = currentFare < (standardFare - 0.05);
+                double discountPercent = 0.0;
+                double discountAmount = 0.0;
+                String discountLabel = "";
+                
+                if (hasDiscount) {
+                  final ratio = (currentFare - platformFee) / costPerSeat;
+                  if (ratio <= 0.75) {
+                    discountPercent = 30.0;
+                    discountLabel = "30% Carpool Discount (3+ Riders)";
+                  } else {
+                    discountPercent = 20.0;
+                    discountLabel = "20% Carpool Discount (2 Riders)";
+                  }
+                  discountAmount = standardFare - currentFare;
+                }
+
+                return Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.surfaceContainerHighest.withOpacity(0.5),
+                    borderRadius: BorderRadius.circular(AppTheme.radiusMd),
+                    border: Border.all(color: Theme.of(context).colorScheme.onSurface.withOpacity(0.05)),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Fare Breakdown',
+                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Theme.of(context).colorScheme.onSurface.withOpacity(0.8)),
+                      ),
+                      const SizedBox(height: 8),
+                      _buildBreakdownRow(
+                        context, 
+                        'Distance Charge (${dist.toStringAsFixed(2)} km @ RM 1.20/km)', 
+                        'RM ${distCost.toStringAsFixed(2)}'
+                      ),
+                      _buildBreakdownRow(
+                        context, 
+                        'Time Charge (${mins.toStringAsFixed(1)} mins @ RM 0.30/min)', 
+                        'RM ${timeCost.toStringAsFixed(2)}'
+                      ),
+                      if (routeCost < 5.0)
+                        _buildBreakdownRow(
+                          context, 
+                          'Minimum Base Adjustment', 
+                          'RM ${(5.0 - routeCost).toStringAsFixed(2)}',
+                          isSubtle: true
+                        ),
+                      _buildBreakdownRow(
+                        context, 
+                        'Platform Fee', 
+                        'RM ${platformFee.toStringAsFixed(2)}'
+                      ),
+                      const Divider(height: 12),
+                      _buildBreakdownRow(
+                        context, 
+                        'Standard Direct Fare', 
+                        'RM ${standardFare.toStringAsFixed(2)}',
+                        isBold: true
+                      ),
+                      if (hasDiscount) ...[
+                        const SizedBox(height: 4),
+                        _buildBreakdownRow(
+                          context, 
+                          discountLabel, 
+                          '-RM ${discountAmount.toStringAsFixed(2)}',
+                          textColor: Colors.green,
+                          isBold: true
+                        ),
+                      ],
+                      const Divider(height: 12),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            'Final Fare',
+                            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Theme.of(context).colorScheme.onSurface),
+                          ),
+                          Text(
+                            'RM ${currentFare.toStringAsFixed(2)}',
+                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppTheme.primary),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                );
+              }
+            ),
             const SizedBox(height: 16),
             Row(
               children: [
@@ -2879,6 +2981,43 @@ class _HomeScreenState extends State<HomeScreen> {
           const SnackBar(content: Text('Could not open Google Maps.')),
         );
       }
-    }
+  }
+
+  Widget _buildBreakdownRow(
+    BuildContext context, 
+    String label, 
+    String value, {
+    bool isBold = false, 
+    bool isSubtle = false,
+    Color? textColor,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2.0),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Expanded(
+            child: Text(
+              label,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: isBold ? FontWeight.bold : FontWeight.normal,
+                color: isSubtle 
+                    ? Theme.of(context).colorScheme.onSurface.withOpacity(0.5) 
+                    : (textColor ?? Theme.of(context).colorScheme.onSurface.withOpacity(0.8)),
+              ),
+            ),
+          ),
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: isBold ? FontWeight.bold : FontWeight.normal,
+              color: textColor ?? Theme.of(context).colorScheme.onSurface.withOpacity(0.8),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
