@@ -839,39 +839,54 @@ class _HomeScreenState extends State<HomeScreen> {
 
     final isDriver = _profile?['role'] == 'driver';
 
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return Scaffold(
+      extendBodyBehindAppBar: true,
       appBar: AppBar(
         title: isDriver
             ? Text(
                 'Driver Dashboard',
                 style: TextStyle(fontWeight: FontWeight.bold, color: Theme.of(context).colorScheme.onSurface),
               )
-            : Row(
-                children: [
-                  Image.asset('assets/images/logo.jpeg', height: 28, fit: BoxFit.contain),
-                  const SizedBox(width: 8),
-                  Text(
-                    'JomRide',
-                    style: TextStyle(fontWeight: FontWeight.bold, color: Theme.of(context).colorScheme.onSurface),
-                  ),
-                ],
-              ),
-        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+            : Image.asset('assets/images/logo.jpeg', height: 32, fit: BoxFit.contain),
+        backgroundColor: Colors.transparent,
         elevation: 0,
         actions: [
-          IconButton(
-            icon: const Icon(Icons.account_balance_wallet_outlined, color: AppTheme.primary),
-            onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const WalletScreen())),
+          Container(
+            margin: const EdgeInsets.only(right: 8),
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.surface.withOpacity(0.8),
+              borderRadius: BorderRadius.circular(AppTheme.radiusMd),
+            ),
+            child: IconButton(
+              icon: Icon(Icons.account_balance_wallet_outlined, color: Theme.of(context).colorScheme.onSurface),
+              onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const WalletScreen())),
+            ),
           ),
-          IconButton(
-            icon: const Icon(Icons.dark_mode_outlined, color: AppTheme.primary),
-            onPressed: () {
-              Provider.of<ThemeNotifier>(context, listen: false).toggleTheme();
-            },
+          Container(
+            margin: const EdgeInsets.only(right: 8),
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.surface.withOpacity(0.8),
+              borderRadius: BorderRadius.circular(AppTheme.radiusMd),
+            ),
+            child: IconButton(
+              icon: Icon(isDark ? Icons.light_mode_outlined : Icons.dark_mode_outlined, color: Theme.of(context).colorScheme.onSurface),
+              onPressed: () {
+                Provider.of<ThemeNotifier>(context, listen: false).toggleTheme();
+              },
+            ),
           ),
-          IconButton(
-            icon: const Icon(Icons.logout, color: AppTheme.ink),
-            onPressed: () => _supabase.auth.signOut(),
+          Container(
+            margin: const EdgeInsets.only(right: 8),
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.surface.withOpacity(0.8),
+              borderRadius: BorderRadius.circular(AppTheme.radiusMd),
+            ),
+            child: IconButton(
+              icon: Icon(Icons.logout, color: Theme.of(context).colorScheme.onSurface),
+              onPressed: () => _supabase.auth.signOut(),
+            ),
           ),
         ],
       ),
@@ -888,7 +903,9 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
             children: [
               TileLayer(
-                urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                urlTemplate: isDark 
+                    ? 'https://basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png'
+                    : 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
                 userAgentPackageName: 'com.jomride.app',
               ),
               // Draw OSRM route lines
@@ -974,12 +991,23 @@ class _HomeScreenState extends State<HomeScreen> {
 
   // Rider Bottom Sheet
   Widget _buildRiderSheet() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    
     if (_activeRide != null) {
       final status = _activeRide!['status'];
       return Container(
         padding: const EdgeInsets.all(24),
-        margin: const EdgeInsets.all(16),
-        decoration: AppTheme.cardDecoration(context, hasShadow: true),
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.surface,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(AppTheme.radiusXl)),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.5),
+              blurRadius: 30,
+              offset: const Offset(0, -10),
+            )
+          ],
+        ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -989,10 +1017,11 @@ class _HomeScreenState extends State<HomeScreen> {
               children: [
                 Text(
                   'Trip Status: ${status.toString().toUpperCase()}',
-                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: AppTheme.ink),
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Theme.of(context).colorScheme.onSurface),
                 ),
                 IconButton(
                   icon: const Icon(Icons.chat_bubble_outline),
+                  color: AppTheme.primary,
                   onPressed: () => Navigator.push(
                     context,
                     MaterialPageRoute(builder: (_) => ChatScreen(rideId: _activeRide!['id'])),
@@ -1001,15 +1030,15 @@ class _HomeScreenState extends State<HomeScreen> {
               ],
             ),
             const SizedBox(height: 8),
-            Text('From: ${_activeRide!['pickup_address']}'),
-            Text('To: ${_activeRide!['drop_address']}'),
-            Text('Fare: RM ${double.parse(_activeRide!['fare'].toString()).toStringAsFixed(2)}'),
+            Text('From: ${_activeRide!['pickup_address']}', style: TextStyle(color: Theme.of(context).colorScheme.onSurface)),
+            Text('To: ${_activeRide!['drop_address']}', style: TextStyle(color: Theme.of(context).colorScheme.onSurface)),
+            Text('Fare: RM ${double.parse(_activeRide!['fare'].toString()).toStringAsFixed(2)}', style: const TextStyle(color: AppTheme.primary, fontWeight: FontWeight.bold)),
             const SizedBox(height: 16),
             Row(
               children: [
                 Expanded(
                   child: ElevatedButton(
-                    style: ElevatedButton.styleFrom(backgroundColor: AppTheme.accent),
+                    style: ElevatedButton.styleFrom(backgroundColor: isDark ? Colors.red.shade900 : Colors.red, foregroundColor: Colors.white),
                     onPressed: _triggerSOS,
                     child: const Text('🚨 SOS Alert'),
                   ),
@@ -1021,7 +1050,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       final url = '$adminTrackUrl/track/${_activeRide!['id']}';
                       launchUrl(Uri.parse(url));
                     },
-                    style: ElevatedButton.styleFrom(backgroundColor: AppTheme.canvasSoft, foregroundColor: AppTheme.ink),
+                    style: ElevatedButton.styleFrom(backgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest, foregroundColor: Theme.of(context).colorScheme.onSurface),
                     child: const Text('🔗 Share Trip'),
                   ),
                 ),
@@ -1031,14 +1060,15 @@ class _HomeScreenState extends State<HomeScreen> {
               const SizedBox(height: 12),
               SizedBox(
                 width: double.infinity,
-                child: ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppTheme.canvasSoft,
-                    foregroundColor: AppTheme.accent,
-                    elevation: 0,
+                child: OutlinedButton(
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.red,
+                    side: const BorderSide(color: Colors.red),
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppTheme.radiusPill)),
                   ),
                   onPressed: () => _updateRideStatus(_activeRide!['id'], 'cancelled'),
-                  child: const Text('Cancel Ride'),
+                  child: const Text('Cancel Ride', style: TextStyle(fontWeight: FontWeight.bold)),
                 ),
               ),
             ],
@@ -1048,118 +1078,107 @@ class _HomeScreenState extends State<HomeScreen> {
     }
 
     return Container(
-      padding: const EdgeInsets.all(24),
-      margin: const EdgeInsets.all(16),
-      decoration: AppTheme.cardDecoration(context, hasShadow: true),
+      padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surface,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(AppTheme.radiusXl)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(isDark ? 0.6 : 0.1),
+            blurRadius: 30,
+            offset: const Offset(0, -10),
+          )
+        ],
+      ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          Center(
+            child: Container(
+              width: 40,
+              height: 5,
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
           Text(
-            'Request a Ride',
-            style: TextStyle(fontFamily: 'Inter', fontSize: 22, fontWeight: FontWeight.bold, color: Theme.of(context).colorScheme.onSurface),
+            'Choose a Ride',
+            style: TextStyle(fontFamily: 'Inter', fontSize: 24, fontWeight: FontWeight.w800, color: Theme.of(context).colorScheme.onSurface),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 16),
           
-          // Presets (Quick Chips)
-          const Text(
-            'Quick Presets:',
-            style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey),
-          ),
-          const SizedBox(height: 6),
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
+          // Stacked Location Inputs
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.surfaceContainerHighest,
+              borderRadius: BorderRadius.circular(AppTheme.radiusLg),
+            ),
             child: Row(
-              children: _mockLocations.entries.map((entry) {
-                return Padding(
-                  padding: const EdgeInsets.only(right: 8.0),
-                  child: ActionChip(
-                    backgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest,
-                    side: BorderSide(color: Theme.of(context).colorScheme.surfaceContainerHighest),
-                    label: Text(
-                      entry.key.split(' ').first,
-                      style: TextStyle(color: Theme.of(context).colorScheme.onSurface),
-                    ), // Short label
-                    onPressed: () {
-                      setState(() {
-                        if (_pickupLatLng == null || _mapSelectMode == 'pickup') {
-                          _pickupLatLng = entry.value;
-                          _pickupAddress = entry.key;
-                          _pickupController.text = entry.key;
-                          _mapSelectMode = null;
-                        } else {
-                          _dropLatLng = entry.value;
-                          _dropAddress = entry.key;
-                          _dropController.text = entry.key;
-                          _mapSelectMode = null;
-                        }
-                      });
-                      _calculateRoute();
-                    },
+              children: [
+                Column(
+                  children: [
+                    const Icon(Icons.circle, size: 12, color: AppTheme.primary),
+                    Container(height: 30, width: 2, color: Theme.of(context).colorScheme.onSurface.withOpacity(0.2)),
+                    const Icon(Icons.stop, size: 12, color: AppTheme.accent),
+                  ],
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    children: [
+                      TextField(
+                        controller: _pickupController,
+                        style: TextStyle(color: Theme.of(context).colorScheme.onSurface),
+                        decoration: InputDecoration(
+                          hintText: 'Pickup Location',
+                          hintStyle: TextStyle(color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5)),
+                          isDense: true,
+                          contentPadding: const EdgeInsets.symmetric(vertical: 8),
+                          border: InputBorder.none,
+                          enabledBorder: InputBorder.none,
+                          focusedBorder: InputBorder.none,
+                          fillColor: Colors.transparent,
+                        ),
+                        onSubmitted: (val) => _searchForAddress(val, 'pickup'),
+                      ),
+                      Divider(color: Theme.of(context).colorScheme.onSurface.withOpacity(0.1), height: 16),
+                      TextField(
+                        controller: _dropController,
+                        style: TextStyle(color: Theme.of(context).colorScheme.onSurface),
+                        decoration: InputDecoration(
+                          hintText: 'Destination',
+                          hintStyle: TextStyle(color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5)),
+                          isDense: true,
+                          contentPadding: const EdgeInsets.symmetric(vertical: 8),
+                          border: InputBorder.none,
+                          enabledBorder: InputBorder.none,
+                          focusedBorder: InputBorder.none,
+                          fillColor: Colors.transparent,
+                        ),
+                        onSubmitted: (val) => _searchForAddress(val, 'drop'),
+                      ),
+                    ],
                   ),
-                );
-              }).toList(),
+                ),
+                Column(
+                  children: [
+                    IconButton(
+                      icon: Icon(Icons.map, color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5), size: 20),
+                      onPressed: () => setState(() => _mapSelectMode = 'pickup'),
+                    ),
+                    IconButton(
+                      icon: Icon(Icons.map, color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5), size: 20),
+                      onPressed: () => setState(() => _mapSelectMode = 'drop'),
+                    ),
+                  ],
+                )
+              ],
             ),
-          ),
-          const SizedBox(height: 12),
-
-          // Pickup Field
-          TextField(
-            controller: _pickupController,
-            decoration: InputDecoration(
-              labelText: 'Pickup Location',
-              hintText: 'Search address or tap map...',
-              prefixIcon: const Icon(Icons.location_on, color: AppTheme.primary),
-              suffixIcon: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  IconButton(
-                    icon: const Icon(Icons.map, color: Colors.grey),
-                    tooltip: 'Choose on Map',
-                    onPressed: () {
-                      setState(() {
-                        _mapSelectMode = 'pickup';
-                      });
-                    },
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.search, color: AppTheme.primary),
-                    onPressed: () => _searchForAddress(_pickupController.text, 'pickup'),
-                  ),
-                ],
-              ),
-            ),
-            onSubmitted: (val) => _searchForAddress(val, 'pickup'),
-          ),
-          const SizedBox(height: 12),
-
-          // Dropoff Field
-          TextField(
-            controller: _dropController,
-            decoration: InputDecoration(
-              labelText: 'Destination',
-              hintText: 'Search address or tap map...',
-              prefixIcon: const Icon(Icons.flag, color: AppTheme.accent),
-              suffixIcon: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  IconButton(
-                    icon: const Icon(Icons.map, color: Colors.grey),
-                    tooltip: 'Choose on Map',
-                    onPressed: () {
-                      setState(() {
-                        _mapSelectMode = 'drop';
-                      });
-                    },
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.search, color: AppTheme.primary),
-                    onPressed: () => _searchForAddress(_dropController.text, 'drop'),
-                  ),
-                ],
-              ),
-            ),
-            onSubmitted: (val) => _searchForAddress(val, 'drop'),
           ),
 
           // Search Results View
@@ -1175,9 +1194,8 @@ class _HomeScreenState extends State<HomeScreen> {
               constraints: const BoxConstraints(maxHeight: 180),
               margin: const EdgeInsets.only(top: 8),
               decoration: BoxDecoration(
-                color: AppTheme.canvasSoft,
+                color: Theme.of(context).colorScheme.surfaceContainerHighest,
                 borderRadius: BorderRadius.circular(AppTheme.radiusMd),
-                border: Border.all(color: AppTheme.canvasSoft),
               ),
               child: ListView.builder(
                 shrinkWrap: true,
@@ -1190,9 +1208,9 @@ class _HomeScreenState extends State<HomeScreen> {
                       item['display_name'],
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontSize: 13),
+                      style: TextStyle(fontSize: 13, color: Theme.of(context).colorScheme.onSurface),
                     ),
-                    trailing: const Icon(Icons.arrow_forward_ios, size: 12),
+                    trailing: Icon(Icons.arrow_forward_ios, size: 12, color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5)),
                     onTap: () {
                       setState(() {
                         final latLng = LatLng(item['lat'], item['lon']);
@@ -1215,120 +1233,101 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
 
           const SizedBox(height: 16),
-          // Preferences
-          const Text('Trip Preferences', style: TextStyle(fontWeight: FontWeight.bold)),
-          const SizedBox(height: 8),
-          Wrap(
-            spacing: 8.0,
-            runSpacing: 4.0,
-            children: [
-              FilterChip(
-                label: const Text('Women-only'),
-                selected: _womenOnly,
-                onSelected: (val) => setState(() => _womenOnly = val),
-              ),
-              FilterChip(
-                label: const Text('Chatty'),
-                selected: _prefChatty,
-                onSelected: (val) => setState(() => _prefChatty = val),
-              ),
-              FilterChip(
-                label: const Text('Pets allowed'),
-                selected: _prefPets,
-                onSelected: (val) => setState(() => _prefPets = val),
-              ),
-              FilterChip(
-                label: const Text('Music allowed'),
-                selected: _prefMusic,
-                onSelected: (val) => setState(() => _prefMusic = val),
-              ),
-              FilterChip(
-                label: const Text('Smoking allowed'),
-                selected: _prefSmoking,
-                onSelected: (val) => setState(() => _prefSmoking = val),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          // Seats Requested
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Text('Seats Required:', style: TextStyle(fontWeight: FontWeight.bold)),
-              Row(
-                children: [
-                  IconButton(
-                    icon: const Icon(Icons.remove_circle_outline),
-                    onPressed: () {
-                      if (_seatsRequested > 1) setState(() => _seatsRequested--);
-                    },
-                  ),
-                  Text('$_seatsRequested', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-                  IconButton(
-                    icon: const Icon(Icons.add_circle_outline),
-                    onPressed: () {
-                      if (_seatsRequested < 4) setState(() => _seatsRequested++);
-                    },
-                  ),
-                ],
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
+          // Seats & Route Estimate Styled as a "Carpool" card
           if (_calculatingRoute)
-            const Center(child: CircularProgressIndicator(color: AppTheme.primary))
+            const Center(child: Padding(padding: EdgeInsets.all(20), child: CircularProgressIndicator(color: AppTheme.primary)))
           else if (_routeEstimate != null) ...[
-            Text('Distance: ${_routeEstimate!['distance_km']} km | ETA: ${_routeEstimate!['duration_mins']} mins'),
-            const SizedBox(height: 8),
             Container(
-              padding: const EdgeInsets.all(12),
+              padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.surfaceContainerHighest,
-                borderRadius: BorderRadius.circular(AppTheme.radiusMd),
+                gradient: LinearGradient(
+                  colors: [AppTheme.primary.withOpacity(0.15), AppTheme.primaryDark.withOpacity(0.05)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                border: Border.all(color: AppTheme.primary.withOpacity(0.3)),
+                borderRadius: BorderRadius.circular(AppTheme.radiusLg),
               ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+              child: Row(
                 children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text('Cost per seat (Base + Dist + Time):', style: TextStyle(color: Theme.of(context).colorScheme.onSurface)),
-                      Text('RM ${_routeEstimate!['cost_per_seat'].toStringAsFixed(2)}', style: TextStyle(color: Theme.of(context).colorScheme.onSurface)),
-                    ],
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: AppTheme.primary,
+                      borderRadius: BorderRadius.circular(AppTheme.radiusMd),
+                    ),
+                    child: const Icon(Icons.directions_car, color: Colors.white),
                   ),
-                  const SizedBox(height: 4),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text('Seats ($_seatsRequested x RM ${_routeEstimate!['cost_per_seat'].toStringAsFixed(2)}):', style: TextStyle(color: Theme.of(context).colorScheme.onSurface)),
-                      Text('RM ${(_routeEstimate!['cost_per_seat'] * _seatsRequested).toStringAsFixed(2)}', style: TextStyle(color: Theme.of(context).colorScheme.onSurface)),
-                    ],
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text('Carpool', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+                        Text('${_routeEstimate!['duration_mins']} mins • ${_routeEstimate!['distance_km']} km', 
+                          style: TextStyle(color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7), fontSize: 12)),
+                      ],
+                    ),
                   ),
-                  const SizedBox(height: 4),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
-                      Text('Platform Booking Fee:', style: TextStyle(color: Theme.of(context).colorScheme.onSurface)),
-                      Text('RM 1.50', style: TextStyle(color: Theme.of(context).colorScheme.onSurface)),
-                    ],
-                  ),
-                  const Divider(height: 16),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text('Total Payable:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Theme.of(context).colorScheme.onSurface)),
-                      Text('RM ${((_routeEstimate!['cost_per_seat'] * _seatsRequested) + 1.50).toStringAsFixed(2)}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppTheme.primary)),
+                      Text('RM ${((_routeEstimate!['cost_per_seat'] * _seatsRequested) + 1.50).toStringAsFixed(2)}', 
+                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: AppTheme.primary)),
+                      Row(
+                        children: [
+                          Icon(Icons.person, size: 14, color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7)),
+                          Text(' x $_seatsRequested', style: TextStyle(color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7), fontSize: 12)),
+                        ],
+                      ),
                     ],
                   ),
                 ],
               ),
             ),
             const SizedBox(height: 16),
+            
+            // Seat Selector
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text('Seats Required', style: TextStyle(fontWeight: FontWeight.bold, color: Theme.of(context).colorScheme.onSurface)),
+                Container(
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                    borderRadius: BorderRadius.circular(AppTheme.radiusPill),
+                  ),
+                  child: Row(
+                    children: [
+                      IconButton(
+                        icon: Icon(Icons.remove, color: Theme.of(context).colorScheme.onSurface),
+                        onPressed: () {
+                          if (_seatsRequested > 1) setState(() => _seatsRequested--);
+                        },
+                      ),
+                      Text('$_seatsRequested', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Theme.of(context).colorScheme.onSurface)),
+                      IconButton(
+                        icon: Icon(Icons.add, color: Theme.of(context).colorScheme.onSurface),
+                        onPressed: () {
+                          if (_seatsRequested < 4) setState(() => _seatsRequested++);
+                        },
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 24),
+            
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 18),
+                  backgroundColor: AppTheme.primary,
+                ),
                 onPressed: _requestRide,
-                child: const Text('Confirm Ride Booking'),
+                child: const Text('Book Carpool', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
               ),
             ),
           ],
@@ -1339,95 +1338,149 @@ class _HomeScreenState extends State<HomeScreen> {
 
   // Driver Bottom Sheet
   Widget _buildDriverSheet() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return Container(
       padding: const EdgeInsets.all(24),
-      margin: const EdgeInsets.all(16),
-      decoration: AppTheme.cardDecoration(context, hasShadow: true),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surface,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(AppTheme.radiusXl)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(isDark ? 0.6 : 0.1),
+            blurRadius: 30,
+            offset: const Offset(0, -10),
+          )
+        ],
+      ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          Center(
+            child: Container(
+              width: 40,
+              height: 5,
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                _isOnline ? 'ONLINE' : 'OFFLINE',
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: _isOnline ? AppTheme.primary : AppTheme.body),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Driver Status',
+                    style: TextStyle(fontFamily: 'Inter', fontSize: 14, color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6)),
+                  ),
+                  Text(
+                    _isOnline ? 'ONLINE' : 'OFFLINE',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 24, color: _isOnline ? AppTheme.primary : Theme.of(context).colorScheme.onSurface),
+                  ),
+                ],
               ),
-              const Spacer(),
               Switch(
                 value: _isOnline,
                 onChanged: _toggleOnline,
-                activeColor: AppTheme.canvas,
+                activeColor: Colors.white,
                 activeTrackColor: AppTheme.primary,
+                inactiveThumbColor: Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
+                inactiveTrackColor: Theme.of(context).colorScheme.surfaceContainerHighest,
               ),
             ],
           ),
           const SizedBox(height: 16),
           if (_isOnline) ...[
             if (_incomingRequests.isEmpty)
-              const Center(
+              Center(
                 child: Padding(
-                  padding: EdgeInsets.symmetric(vertical: 20.0),
-                  child: Text('Searching for ride requests in Malaysia...'),
+                  padding: const EdgeInsets.symmetric(vertical: 40.0),
+                  child: Text(
+                    'Waiting for ride requests...',
+                    style: TextStyle(color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5)),
+                  ),
                 ),
               )
             else ...[
-              const Text('Incoming Requests:', style: TextStyle(fontWeight: FontWeight.bold)),
-              const SizedBox(height: 8),
+              Text('Incoming Requests', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Theme.of(context).colorScheme.onSurface)),
+              const SizedBox(height: 12),
               SizedBox(
-                height: 150,
+                height: 180,
                 child: ListView.builder(
                   shrinkWrap: true,
                   itemCount: _incomingRequests.length,
                   itemBuilder: (ctx, idx) {
                     final req = _incomingRequests[idx];
-                    return Card(
-                      color: AppTheme.canvasSoft,
+                    return Container(
+                      margin: const EdgeInsets.only(bottom: 12),
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                        borderRadius: BorderRadius.circular(AppTheme.radiusLg),
+                        border: Border.all(color: Theme.of(context).colorScheme.onSurface.withOpacity(0.05)),
+                      ),
                       child: Padding(
-                        padding: const EdgeInsets.all(12.0),
+                        padding: const EdgeInsets.all(16.0),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text('To: ${req['drop_address']}', style: const TextStyle(fontWeight: FontWeight.bold)),
-                            const SizedBox(height: 4),
-                            Text('Seats: ${req['seats'] ?? 1} | Dist: ${req['distance_km']}km'),
-                            const SizedBox(height: 4),
-                            Text('Fare: RM ${req['fare']} (includes RM ${req['platform_fee'] ?? 0} fee)', style: const TextStyle(color: AppTheme.primary, fontWeight: FontWeight.bold)),
-                            const SizedBox(height: 8),
-                            Wrap(
-                              spacing: 4.0,
+                            Row(
                               children: [
-                                if (req['women_only'] == true) const Chip(label: Text('Women-only', style: TextStyle(fontSize: 10)), padding: EdgeInsets.zero),
-                                if (req['chatty'] == true) const Chip(label: Text('Chatty', style: TextStyle(fontSize: 10)), padding: EdgeInsets.zero),
-                                if (req['pets_allowed'] == true) const Chip(label: Text('Pets OK', style: TextStyle(fontSize: 10)), padding: EdgeInsets.zero),
-                                if (req['music_allowed'] == true) const Chip(label: Text('Music OK', style: TextStyle(fontSize: 10)), padding: EdgeInsets.zero),
-                                if (req['smoking_allowed'] == true) const Chip(label: Text('Smoking OK', style: TextStyle(fontSize: 10)), padding: EdgeInsets.zero),
+                                const Icon(Icons.location_on, size: 16, color: AppTheme.primary),
+                                const SizedBox(width: 8),
+                                Expanded(child: Text('Pickup: ${req['pickup_address']}', maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: Theme.of(context).colorScheme.onSurface))),
                               ],
                             ),
-                            const SizedBox(height: 8),
+                            const SizedBox(height: 4),
                             Row(
-                              mainAxisAlignment: MainAxisAlignment.end,
                               children: [
-                                ElevatedButton(
-                                  onPressed: () {
-                                    setState(() {
-                                      _activeRide = req;
-                                    });
-                                    _updateRideStatus(req['id'], 'accepted');
-                                  },
-                                  child: const Text('Accept'),
-                                ),
+                                const Icon(Icons.flag, size: 16, color: AppTheme.accent),
                                 const SizedBox(width: 8),
-                                ElevatedButton(
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: AppTheme.canvas,
-                                    foregroundColor: AppTheme.accent,
-                                    side: const BorderSide(color: AppTheme.accent),
-                                    elevation: 0,
-                                  ),
-                                  onPressed: () => _updateRideStatus(req['id'], 'cancelled'),
-                                  child: const Text('Decline'),
+                                Expanded(child: Text('Dropoff: ${req['drop_address']}', maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: Theme.of(context).colorScheme.onSurface))),
+                              ],
+                            ),
+                            const SizedBox(height: 12),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text('RM ${req['fare']}', style: const TextStyle(color: AppTheme.primary, fontWeight: FontWeight.bold, fontSize: 18)),
+                                    Text('${req['distance_km']}km • ${req['seats'] ?? 1} seats', style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6))),
+                                  ],
+                                ),
+                                Row(
+                                  children: [
+                                    OutlinedButton(
+                                      style: OutlinedButton.styleFrom(
+                                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppTheme.radiusPill)),
+                                        side: BorderSide(color: Theme.of(context).colorScheme.onSurface.withOpacity(0.2)),
+                                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                                      ),
+                                      onPressed: () => _updateRideStatus(req['id'], 'cancelled'),
+                                      child: Text('Decline', style: TextStyle(color: Theme.of(context).colorScheme.onSurface)),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    ElevatedButton(
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: AppTheme.primary,
+                                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppTheme.radiusPill)),
+                                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                                      ),
+                                      onPressed: () {
+                                        setState(() {
+                                          _activeRide = req;
+                                        });
+                                        _updateRideStatus(req['id'], 'accepted');
+                                      },
+                                      child: const Text('Accept', style: TextStyle(fontWeight: FontWeight.bold)),
+                                    ),
+                                  ],
                                 ),
                               ],
                             ),
@@ -1441,56 +1494,94 @@ class _HomeScreenState extends State<HomeScreen> {
             ]
           ],
           if (_activeRide != null && _activeRide!['status'] != 'requested') ...[
-            const Divider(),
-            Text('Active Job: Rider ID ${_activeRide!['rider_id'].toString().substring(0, 5)}'),
-            Text('Pickup: ${_activeRide!['pickup_address']}'),
-            Text('Drop-off: ${_activeRide!['drop_address']}'),
-            const SizedBox(height: 12),
+            Divider(color: Theme.of(context).colorScheme.onSurface.withOpacity(0.1)),
+            const SizedBox(height: 8),
+            Text('Active Trip (Rider ID: ${_activeRide!['rider_id'].toString().substring(0, 5)})', style: const TextStyle(fontWeight: FontWeight.bold, color: AppTheme.primary)),
+            const SizedBox(height: 8),
             Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Row(
-                  children: [
-                    if (_activeRide!['status'] == 'accepted')
-                      ElevatedButton(
-                        onPressed: () => _updateRideStatus(_activeRide!['id'], 'arrived'),
-                        child: const Text('Arrived at Pickup'),
-                      ),
-                    if (_activeRide!['status'] == 'arrived')
-                      ElevatedButton(
-                        onPressed: () => _updateRideStatus(_activeRide!['id'], 'picked_up'),
-                        child: const Text('Start Trip'),
-                      ),
-                    if (_activeRide!['status'] == 'picked_up')
-                      ElevatedButton(
-                        onPressed: () => _updateRideStatus(_activeRide!['id'], 'completed'),
-                        child: const Text('Complete Trip'),
-                      ),
-                    if (_activeRide!['status'] == 'accepted' || _activeRide!['status'] == 'arrived') ...[
-                      const SizedBox(width: 8),
-                      OutlinedButton(
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: Colors.red,
-                          side: const BorderSide(color: Colors.red),
-                        ),
-                        onPressed: () => _updateRideStatus(_activeRide!['id'], 'cancelled'),
-                        child: const Text('Cancel Job'),
-                      ),
-                    ],
-                  ],
+                const Icon(Icons.location_on, size: 16, color: AppTheme.primary),
+                const SizedBox(width: 8),
+                Expanded(child: Text(_activeRide!['pickup_address'], maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: Theme.of(context).colorScheme.onSurface))),
+              ],
+            ),
+            const SizedBox(height: 4),
+            Row(
+              children: [
+                const Icon(Icons.flag, size: 16, color: AppTheme.accent),
+                const SizedBox(width: 8),
+                Expanded(child: Text(_activeRide!['drop_address'], maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: Theme.of(context).colorScheme.onSurface))),
+              ],
+            ),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                Expanded(
+                  child: _buildDriverActionButton(),
                 ),
-                IconButton(
-                  icon: const Icon(Icons.chat_bubble_outline),
-                  onPressed: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => ChatScreen(rideId: _activeRide!['id'])),
+                const SizedBox(width: 12),
+                Container(
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                    borderRadius: BorderRadius.circular(AppTheme.radiusMd),
+                  ),
+                  child: IconButton(
+                    icon: const Icon(Icons.chat_bubble_outline),
+                    color: AppTheme.primary,
+                    onPressed: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => ChatScreen(rideId: _activeRide!['id'])),
+                    ),
                   ),
                 ),
               ],
             ),
+            if (_activeRide!['status'] == 'accepted' || _activeRide!['status'] == 'arrived') ...[
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton(
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.red,
+                    side: const BorderSide(color: Colors.red),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppTheme.radiusPill)),
+                  ),
+                  onPressed: () => _updateRideStatus(_activeRide!['id'], 'cancelled'),
+                  child: const Text('Cancel Trip', style: TextStyle(fontWeight: FontWeight.bold)),
+                ),
+              ),
+            ],
           ]
         ],
       ),
+    );
+  }
+
+  Widget _buildDriverActionButton() {
+    String label = '';
+    String nextStatus = '';
+    
+    if (_activeRide!['status'] == 'accepted') {
+      label = 'Arrived at Pickup';
+      nextStatus = 'arrived';
+    } else if (_activeRide!['status'] == 'arrived') {
+      label = 'Start Trip';
+      nextStatus = 'picked_up';
+    } else if (_activeRide!['status'] == 'picked_up') {
+      label = 'Complete Trip';
+      nextStatus = 'completed';
+    } else {
+      return const SizedBox.shrink();
+    }
+
+    return ElevatedButton(
+      style: ElevatedButton.styleFrom(
+        padding: const EdgeInsets.symmetric(vertical: 16),
+        backgroundColor: AppTheme.primary,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppTheme.radiusPill)),
+      ),
+      onPressed: () => _updateRideStatus(_activeRide!['id'], nextStatus),
+      child: Text(label, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
     );
   }
 }
