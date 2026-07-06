@@ -163,6 +163,7 @@ class _HomeScreenState extends State<HomeScreen> {
       setState(() {
         _activeDriverRides = List<Map<String, dynamic>>.from(data);
       });
+      _updateCarpoolRoute();
     } catch (e) {
       debugPrint('Error loading active driver rides: $e');
     }
@@ -697,6 +698,17 @@ class _HomeScreenState extends State<HomeScreen> {
             });
           },
         )
+        .onBroadcast(
+          event: 'route-update',
+          callback: (payload) {
+            if (payload['polyline'] != null) {
+              final list = payload['polyline'] as List;
+              setState(() {
+                _polylinePoints = list.map((item) => LatLng(item[0], item[1])).toList();
+              });
+            }
+          },
+        )
         .subscribe();
   }
 
@@ -825,6 +837,17 @@ class _HomeScreenState extends State<HomeScreen> {
             'updated_at': DateTime.now().toIso8601String(),
           });
         }
+
+        // Broadcast current route coordinates to riders periodically
+        if (_polylinePoints.isNotEmpty) {
+          final channel = _supabase.channel('driver-gps-$userId');
+          channel.sendBroadcast(
+            event: 'route-update',
+            payload: {
+              'polyline': _polylinePoints.map((p) => [p.latitude, p.longitude]).toList(),
+            },
+          );
+        }
       } catch (e) {
         debugPrint('GPS Daemon error: $e');
       }
@@ -892,6 +915,47 @@ class _HomeScreenState extends State<HomeScreen> {
       };
       if (status == 'accepted') {
         updateData['driver_id'] = userId;
+
+        // Check if there are other active rides to notify them of a rideshared carpool
+        final newRide = _incomingRequests.firstWhere(
+          (r) => r['id'] == rideId,
+          orElse: () => <String, dynamic>{},
+        );
+
+        if (newRide.isNotEmpty) {
+          final List<Map<String, dynamic>> allRides = [..._activeDriverRides];
+          allRides.add(newRide);
+
+          if (allRides.length > 1) {
+            final firstRide = allRides.first;
+            final pickupPoint = LatLng(
+              double.parse(firstRide['pickup_latitude'].toString()),
+              double.parse(firstRide['pickup_longitude'].toString()),
+            );
+
+            final List<Map<String, dynamic>> dropoffInfo = allRides.map((r) => {
+              'address': r['drop_address'],
+              'latlng': LatLng(double.parse(r['drop_latitude'].toString()), double.parse(r['drop_longitude'].toString())),
+            }).toList();
+
+            dropoffInfo.sort((a, b) {
+              final distA = _getDistanceKm(pickupPoint, a['latlng'] as LatLng);
+              final distB = _getDistanceKm(pickupPoint, b['latlng'] as LatLng);
+              return distA.compareTo(distB);
+            });
+
+            final routeStr = "Pickup -> " + dropoffInfo.map((d) => d['address']).join(' -> ');
+            final notificationMessage = "🚗 Carpool Alert: You are sharing this ride with other passengers! Route order: $routeStr";
+
+            for (final ride in allRides) {
+              await _supabase.from('chats').insert({
+                'ride_id': ride['id'],
+                'sender_id': userId,
+                'message': notificationMessage,
+              });
+            }
+          }
+        }
       }
 
       await _supabase.from('rides').update(updateData).eq('id', rideId);
@@ -1920,5 +1984,81 @@ class _HomeScreenState extends State<HomeScreen> {
       onPressed: () => _updateRideStatus(ride['id'], nextStatus),
       child: Text(label, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
     );
+  }
+
+  Future<void> _updateCarpoolRoute() async {
+    if (_activeDriverRides.isEmpty) {
+      setState(() {
+        _polylinePoints = [];
+      });
+      return;
+    }
+
+    try {
+      final firstRide = _activeDriverRides.first;
+      final pickup = LatLng(
+        double.parse(firstRide['pickup_latitude'].toString()),
+        double.parse(firstRide['pickup_longitude'].toString()),
+      );
+
+      final List<LatLng> dropoffs = _activeDriverRides.map((r) {
+        return LatLng(
+          double.parse(r['drop_latitude'].toString()),
+          double.parse(r['drop_longitude'].toString()),
+        );
+      }).toList();
+
+      // Sort dropoffs closest to farthest from pickup
+      dropoffs.sort((a, b) {
+        final distA = _getDistanceKm(pickup, a);
+        final distB = _getDistanceKm(pickup, b);
+        return distA.compareTo(distB);
+      });
+
+      // Construct coordinates list for OpenRouteService [lng, lat]
+      final List<List<double>> coords = [
+        [pickup.longitude, pickup.latitude],
+        ...dropoffs.map((d) => [d.longitude, d.latitude]),
+      ];
+
+      final String orsKey = 'eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6ImFiZTAwNjliOWI1NjQ3Yzk4YzAyZGQ2NmQyMjMxMmNhIiwiaCI6Im11cm11cjY0In0=';
+      final response = await http.post(
+        Uri.parse('https://api.openrouteservice.org/v2/directions/driving-car'),
+        headers: {
+          'Content-Type': 'application/json; charset=utf-8',
+          'Authorization': orsKey,
+        },
+        body: json.encode({
+          'coordinates': coords,
+        }),
+      ).timeout(const Duration(seconds: 10));
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        if (data['features'] != null && data['features'].isNotEmpty) {
+          final feature = data['features'][0];
+          final coordsList = feature['geometry']['coordinates'] as List;
+          final newPoints = coordsList.map((c) => LatLng(c[1], c[0])).toList();
+
+          setState(() {
+            _polylinePoints = newPoints;
+          });
+
+          // Broadcast to riders immediately
+          final userId = _supabase.auth.currentUser?.id;
+          if (userId != null) {
+            final channel = _supabase.channel('driver-gps-$userId');
+            channel.sendBroadcast(
+              event: 'route-update',
+              payload: {
+                'polyline': newPoints.map((p) => [p.latitude, p.longitude]).toList(),
+              },
+            );
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('Error updating carpool route: $e');
+    }
   }
 }
