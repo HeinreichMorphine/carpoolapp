@@ -1788,38 +1788,14 @@ class _HomeScreenState extends State<HomeScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Fare Breakdown',
+                        'Fare Details',
                         style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Theme.of(context).colorScheme.onSurface.withOpacity(0.8)),
                       ),
                       const SizedBox(height: 8),
                       _buildBreakdownRow(
                         context, 
-                        'Distance Charge (${dist.toStringAsFixed(2)} km @ RM 1.20/km)', 
-                        'RM ${distCost.toStringAsFixed(2)}'
-                      ),
-                      _buildBreakdownRow(
-                        context, 
-                        'Time Charge (${mins.toStringAsFixed(1)} mins @ RM 0.30/min)', 
-                        'RM ${timeCost.toStringAsFixed(2)}'
-                      ),
-                      if (routeCost < 5.0)
-                        _buildBreakdownRow(
-                          context, 
-                          'Minimum Base Adjustment', 
-                          'RM ${(5.0 - routeCost).toStringAsFixed(2)}',
-                          isSubtle: true
-                        ),
-                      _buildBreakdownRow(
-                        context, 
-                        'Platform Fee', 
-                        'RM ${platformFee.toStringAsFixed(2)}'
-                      ),
-                      const Divider(height: 12),
-                      _buildBreakdownRow(
-                        context, 
                         'Standard Direct Fare', 
-                        'RM ${standardFare.toStringAsFixed(2)}',
-                        isBold: true
+                        'RM ${standardFare.toStringAsFixed(2)}'
                       ),
                       if (hasDiscount) ...[
                         const SizedBox(height: 4),
