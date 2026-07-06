@@ -874,10 +874,12 @@ class _HomeScreenState extends State<HomeScreen> {
           table: 'rides',
           callback: (payload) {
             _loadIncomingRequests();
+            _loadActiveDriverRides();
           },
         )
         .subscribe();
     _loadIncomingRequests();
+    _loadActiveDriverRides();
   }
 
   double _getDistanceKm(LatLng p1, LatLng p2) {
