@@ -80,7 +80,18 @@ class _AuthRedirectHandlerState extends State<AuthRedirectHandler> {
 
   @override
   Widget build(BuildContext context) {
-    // Bypassing login page as requested
-    return const HomeScreen();
+    if (!_initialized) {
+      return Scaffold(
+        body: Center(
+          child: CircularProgressIndicator(color: Theme.of(context).primaryColor),
+        ),
+      );
+    }
+
+    if (_session != null) {
+      return const HomeScreen();
+    } else {
+      return const AuthScreen();
+    }
   }
 }

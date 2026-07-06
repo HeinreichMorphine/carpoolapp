@@ -438,7 +438,7 @@ class _HomeScreenState extends State<HomeScreen> {
     _calculateRoute();
   }
 
-  Future<void> _requestRide() async {
+  Future<void> _requestRide({required bool simulated}) async {
     if (_routeEstimate == null || _pickupLatLng == null || _dropLatLng == null) return;
     setState(() => _calculatingRoute = true);
 
@@ -473,7 +473,7 @@ class _HomeScreenState extends State<HomeScreen> {
         // 'music_allowed': _prefMusic,
         // 'smoking_allowed': _prefSmoking,
         'women_only': _womenOnly,
-        'trust_circle_domain': _corporateEmailDomain.isNotEmpty ? _corporateEmailDomain : null,
+        'trust_circle_domain': simulated ? 'simulated' : (_corporateEmailDomain.isNotEmpty ? _corporateEmailDomain : null),
       }).select().single();
 
       setState(() {
@@ -773,25 +773,49 @@ class _HomeScreenState extends State<HomeScreen> {
 
   void _startGPSDaemon() {
     _gpsTimer?.cancel();
-    // Start periodic location publisher
     final userId = _supabase.auth.currentUser?.id;
     if (userId == null) return;
 
-    // Simulate location moving slightly over Melaka
     double baseLat = 2.19;
     double baseLng = 102.25;
     double offset = 0.0;
 
     _gpsTimer = Timer.periodic(const Duration(seconds: 5), (timer) async {
-      offset += 0.0002;
       try {
-        await _supabase.from('driver_locations').upsert({
-          'driver_id': userId,
-          'latitude': baseLat + offset,
-          'longitude': baseLng + offset,
-          'heading': 45.0,
-          'updated_at': DateTime.now().toIso8601String(),
-        });
+        final hasSimulatedRide = _activeDriverRides.any((ride) => ride['trust_circle_domain'] == 'simulated');
+
+        if (hasSimulatedRide) {
+          offset += 0.0002;
+          await _supabase.from('driver_locations').upsert({
+            'driver_id': userId,
+            'latitude': baseLat + offset,
+            'longitude': baseLng + offset,
+            'heading': 45.0,
+            'updated_at': DateTime.now().toIso8601String(),
+          });
+        } else {
+          bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+          if (!serviceEnabled) return;
+
+          LocationPermission permission = await Geolocator.checkPermission();
+          if (permission == LocationPermission.denied) {
+            permission = await Geolocator.requestPermission();
+            if (permission == LocationPermission.denied) return;
+          }
+          if (permission == LocationPermission.deniedForever) return;
+
+          final position = await Geolocator.getCurrentPosition(
+            desiredAccuracy: LocationAccuracy.high,
+          );
+
+          await _supabase.from('driver_locations').upsert({
+            'driver_id': userId,
+            'latitude': position.latitude,
+            'longitude': position.longitude,
+            'heading': position.heading,
+            'updated_at': DateTime.now().toIso8601String(),
+          });
+        }
       } catch (e) {
         debugPrint('GPS Daemon error: $e');
       }
@@ -1529,16 +1553,32 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
             const SizedBox(height: 16),
             
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 18),
-                  backgroundColor: AppTheme.primary,
+            Row(
+              children: [
+                Expanded(
+                  child: ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 18),
+                      backgroundColor: Colors.amber.shade800,
+                      foregroundColor: Colors.white,
+                    ),
+                    onPressed: () => _requestRide(simulated: true),
+                    child: const Text('Simulated Book', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
+                  ),
                 ),
-                onPressed: _requestRide,
-                child: const Text('Book Carpool', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-              ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 18),
+                      backgroundColor: AppTheme.primary,
+                      foregroundColor: Colors.white,
+                    ),
+                    onPressed: () => _requestRide(simulated: false),
+                    child: const Text('Real Book', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
+                  ),
+                ),
+              ],
             ),
           ],
         ],
