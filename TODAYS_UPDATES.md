@@ -1,6 +1,6 @@
 # Carpool App Updates (July 7, 2026)
 
-This document summarizes the backend and frontend updates pushed today. Teammates should pull the latest changes on the `main` branch and perform the required Supabase database updates described below.
+This document summarizes the backend and frontend updates pushed today. Pull the latest changes on the `main` branch. The required database updates for your Supabase instance are described below.
 
 ---
 
@@ -41,9 +41,9 @@ This document summarizes the backend and frontend updates pushed today. Teammate
 
 ---
 
-## 🛠️ Required Action: Update Supabase Database
+## 🛠️ Required Action: Update Your Supabase Database
 
-Since we updated table schemas and trigger functions, **please execute the following SQL script** in your [Supabase SQL Editor](https://supabase.com/dashboard/project/zwhyrnhhazjsciyyeijc):
+Since we updated table schemas and trigger functions, **please execute the following SQL script** in your personal [Supabase SQL Editor](https://supabase.com/dashboard/project/zwhyrnhhazjsciyyeijc):
 
 ```sql
 -- 1. Add Emergency Contact Columns to Profiles
