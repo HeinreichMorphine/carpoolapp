@@ -739,27 +739,383 @@ class _HomeScreenState extends State<HomeScreen> {
 
   void _triggerSOS() async {
     if (_activeRide == null) return;
+    
+    final contactPhone = _profile?['emergency_contact_phone'] as String?;
+    if (contactPhone == null || contactPhone.trim().isEmpty) {
+      _showSetEmergencyContactDialog();
+    } else {
+      _showSOSActionsDialog();
+    }
+  }
+
+  void _showSetEmergencyContactDialog() {
+    final nameController = TextEditingController();
+    final phoneController = TextEditingController();
+    final formKey = GlobalKey<FormState>();
+
+    showDialog(
+      context: context,
+      barrierDismissible: true,
+      builder: (ctx) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppTheme.radiusLg)),
+          title: Row(
+            children: const [
+              Icon(Icons.contact_phone, color: AppTheme.primary),
+              SizedBox(width: 10),
+              Text('Emergency Contact', style: TextStyle(fontWeight: FontWeight.bold)),
+            ],
+          ),
+          content: Form(
+            key: formKey,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text(
+                  'To use SOS Alert, please set an emergency contact number. We will help you send automated texts during emergencies.',
+                  style: TextStyle(fontSize: 13),
+                ),
+                const SizedBox(height: 16),
+                TextFormField(
+                  controller: nameController,
+                  decoration: InputDecoration(
+                    labelText: 'Contact Name (e.g. Mom)',
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppTheme.radiusMd)),
+                    prefixIcon: const Icon(Icons.person),
+                  ),
+                  validator: (value) {
+                    if (value == null || value.trim().isEmpty) {
+                      return 'Please enter a contact name';
+                    }
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: phoneController,
+                  keyboardType: TextInputType.phone,
+                  decoration: InputDecoration(
+                    labelText: 'Phone Number (e.g. +60123456789)',
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppTheme.radiusMd)),
+                    prefixIcon: const Icon(Icons.phone),
+                  ),
+                  validator: (value) {
+                    if (value == null || value.trim().isEmpty) {
+                      return 'Please enter a phone number';
+                    }
+                    return null;
+                  },
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppTheme.primary,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppTheme.radiusPill)),
+              ),
+              onPressed: () async {
+                if (formKey.currentState!.validate()) {
+                  final name = nameController.text.trim();
+                  final phone = phoneController.text.trim();
+                  
+                  Navigator.pop(ctx);
+                  
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Saving emergency contact...')),
+                  );
+
+                  try {
+                    final userId = _supabase.auth.currentUser?.id;
+                    if (userId != null) {
+                      await _supabase.from('profiles').update({
+                        'emergency_contact_name': name,
+                        'emergency_contact_phone': phone,
+                      }).eq('id', userId);
+                      
+                      await _loadUserProfile();
+                      
+                      _showSOSActionsDialog();
+                    }
+                  } catch (e) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Failed to save contact: $e'), backgroundColor: Colors.red),
+                    );
+                  }
+                }
+              },
+              child: const Text('Save & Continue', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _showSOSActionsDialog() {
+    final contactName = _profile?['emergency_contact_name'] ?? 'Emergency Contact';
+    final contactPhone = _profile?['emergency_contact_phone'] ?? '';
+    
+    showDialog(
+      context: context,
+      barrierDismissible: true,
+      builder: (ctx) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppTheme.radiusLg)),
+          title: Row(
+            children: const [
+              Icon(Icons.warning, color: Colors.red),
+              SizedBox(width: 10),
+              Text('🚨 Send SOS Alert', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.red)),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'This will dispatch an emergency alert to Telegram admins. You can also send a pre-filled distress message to your contact, $contactName.',
+                style: const TextStyle(fontSize: 14),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Contact: $contactPhone',
+                style: const TextStyle(fontWeight: FontWeight.bold, color: AppTheme.primary),
+              ),
+            ],
+          ),
+          actionsAlignment: MainAxisAlignment.spaceBetween,
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(ctx);
+                _showEditEmergencyContactDialog();
+              },
+              child: const Text('Edit Contact', style: TextStyle(color: Colors.blue)),
+            ),
+            Row(
+              children: [
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
+                ),
+                const SizedBox(width: 8),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.red.shade700,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppTheme.radiusPill)),
+                  ),
+                  onPressed: () {
+                    Navigator.pop(ctx);
+                    _sendSOSAlert(contactPhone, contactName);
+                  },
+                  child: const Text('Send Alert', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                ),
+              ],
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _showEditEmergencyContactDialog() {
+    final nameController = TextEditingController(text: _profile?['emergency_contact_name']);
+    final phoneController = TextEditingController(text: _profile?['emergency_contact_phone']);
+    final formKey = GlobalKey<FormState>();
+
+    showDialog(
+      context: context,
+      barrierDismissible: true,
+      builder: (ctx) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppTheme.radiusLg)),
+          title: const Text('Edit Emergency Contact', style: TextStyle(fontWeight: FontWeight.bold)),
+          content: Form(
+            key: formKey,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextFormField(
+                  controller: nameController,
+                  decoration: InputDecoration(
+                    labelText: 'Contact Name',
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppTheme.radiusMd)),
+                    prefixIcon: const Icon(Icons.person),
+                  ),
+                  validator: (value) {
+                    if (value == null || value.trim().isEmpty) {
+                      return 'Please enter a contact name';
+                    }
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: phoneController,
+                  keyboardType: TextInputType.phone,
+                  decoration: InputDecoration(
+                    labelText: 'Phone Number',
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppTheme.radiusMd)),
+                    prefixIcon: const Icon(Icons.phone),
+                  ),
+                  validator: (value) {
+                    if (value == null || value.trim().isEmpty) {
+                      return 'Please enter a phone number';
+                    }
+                    return null;
+                  },
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppTheme.primary,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppTheme.radiusPill)),
+              ),
+              onPressed: () async {
+                if (formKey.currentState!.validate()) {
+                  final name = nameController.text.trim();
+                  final phone = phoneController.text.trim();
+                  
+                  Navigator.pop(ctx);
+                  
+                  try {
+                    final userId = _supabase.auth.currentUser?.id;
+                    if (userId != null) {
+                      await _supabase.from('profiles').update({
+                        'emergency_contact_name': name,
+                        'emergency_contact_phone': phone,
+                      }).eq('id', userId);
+                      
+                      await _loadUserProfile();
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Emergency contact updated successfully.')),
+                      );
+                      
+                      _showSOSActionsDialog();
+                    }
+                  } catch (e) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Failed to update contact: $e'), backgroundColor: Colors.red),
+                    );
+                  }
+                }
+              },
+              child: const Text('Save Changes', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _sendSOSAlert(String contactPhone, String contactName) async {
+    if (_activeRide == null) return;
     final pLoc = _pickupLatLng ?? const LatLng(2.19, 102.25);
     
-    // Call Telegram notify with special SOS format
-    await _supabase.functions.invoke('telegram-notify', body: {
-      'ride_id': _activeRide!['id'],
-      'status': 'sos',
-      'details': {
-        'rider_name': _profile?['name'] ?? 'Rider',
-        'latitude': pLoc.latitude,
-        'longitude': pLoc.longitude,
+    try {
+      await _supabase.functions.invoke('telegram-notify', body: {
+        'ride_id': _activeRide!['id'],
+        'status': 'sos',
+        'details': {
+          'rider_name': _profile?['name'] ?? 'Rider',
+          'latitude': pLoc.latitude,
+          'longitude': pLoc.longitude,
+        }
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('🚨 SOS Alert Dispatched to Telegram Admins!'),
+            backgroundColor: Colors.red,
+          ),
+        );
       }
-    });
-
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('🚨 SOS Alert Dispatched to Telegram Admins!'),
-          backgroundColor: Colors.red,
-        ),
-      );
+    } catch (e) {
+      debugPrint('Telegram SOS dispatch error: $e');
     }
+
+    final shareLink = '$adminTrackUrl/track/${_activeRide!['id']}';
+    final message = "🚨 EMERGENCY! I am on a carpool ride and just triggered an SOS. Track me live here: $shareLink. My pickup location coordinate: https://www.google.com/maps/search/?api=1&query=${pLoc.latitude},${pLoc.longitude}";
+
+    if (!mounted) return;
+    showDialog(
+      context: context,
+      barrierDismissible: true,
+      builder: (ctx) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppTheme.radiusLg)),
+          title: const Text('Contact Emergency Contact', style: TextStyle(fontWeight: FontWeight.bold)),
+          content: Text('Would you like to send this distress text to $contactName via WhatsApp or normal SMS?'),
+          actionsAlignment: MainAxisAlignment.spaceEvenly,
+          actions: [
+            ElevatedButton.icon(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.green,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppTheme.radiusPill)),
+              ),
+              icon: const Icon(Icons.chat),
+              label: const Text('WhatsApp', style: TextStyle(fontWeight: FontWeight.bold)),
+              onPressed: () async {
+                Navigator.pop(ctx);
+                String cleanPhone = contactPhone.replaceAll(RegExp(r'[^\d]'), '');
+                if (cleanPhone.startsWith('0') && cleanPhone.length > 1) {
+                  cleanPhone = '60' + cleanPhone.substring(1);
+                }
+                final waUrl = 'https://wa.me/$cleanPhone?text=${Uri.encodeComponent(message)}';
+                try {
+                  await launchUrl(Uri.parse(waUrl), mode: LaunchMode.externalApplication);
+                } catch (e) {
+                  debugPrint('Could not launch WhatsApp: $e');
+                }
+              },
+            ),
+            ElevatedButton.icon(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.blue,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppTheme.radiusPill)),
+              ),
+              icon: const Icon(Icons.sms),
+              label: const Text('SMS Text', style: TextStyle(fontWeight: FontWeight.bold)),
+              onPressed: () async {
+                Navigator.pop(ctx);
+                final Uri smsUri = Uri(
+                  scheme: 'sms',
+                  path: contactPhone,
+                  queryParameters: <String, String>{
+                    'body': message,
+                  },
+                );
+                try {
+                  if (await canLaunchUrl(smsUri)) {
+                    await launchUrl(smsUri);
+                  } else {
+                    final fallbackUrl = 'sms:$contactPhone?body=${Uri.encodeComponent(message)}';
+                    await launchUrl(Uri.parse(fallbackUrl));
+                  }
+                } catch (e) {
+                  debugPrint('Could not launch SMS: $e');
+                }
+              },
+            ),
+          ],
+        );
+      },
+    );
   }
 
   // --------------------------------------------------
@@ -2095,7 +2451,24 @@ class _HomeScreenState extends State<HomeScreen> {
           if (_activeDriverRides.isNotEmpty) ...[
             Divider(color: Theme.of(context).colorScheme.onSurface.withOpacity(0.1)),
             const SizedBox(height: 8),
-            Text('Active Trips', style: TextStyle(fontWeight: FontWeight.bold, color: Theme.of(context).colorScheme.onSurface, fontSize: 16)),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text('Active Trips', style: TextStyle(fontWeight: FontWeight.bold, color: Theme.of(context).colorScheme.onSurface, fontSize: 16)),
+                if (_activeDriverRides.any((ride) => ride['trust_circle_domain'] != 'simulated'))
+                  ElevatedButton.icon(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.green.shade700,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppTheme.radiusPill)),
+                    ),
+                    icon: const Icon(Icons.map, size: 16),
+                    label: const Text('Navigate Route', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                    onPressed: _launchGoogleMapsMultiStopRoute,
+                  ),
+              ],
+            ),
             const SizedBox(height: 8),
             ..._activeDriverRides.map((ride) {
               return Container(
@@ -2284,6 +2657,113 @@ class _HomeScreenState extends State<HomeScreen> {
       }
     } catch (e) {
       debugPrint('Error updating carpool route: $e');
+    }
+  }
+
+  Future<void> _launchGoogleMapsMultiStopRoute() async {
+    // 1. Get driver current location
+    LatLng? startPoint;
+    try {
+      final pos = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.high);
+      startPoint = LatLng(pos.latitude, pos.longitude);
+    } catch (_) {
+      // Fallback: If GPS fails/disabled, use the first ride's pickup location
+      if (_activeDriverRides.isNotEmpty) {
+        final firstRide = _activeDriverRides.first;
+        final lat = double.tryParse(firstRide['pickup_latitude']?.toString() ?? '');
+        final lng = double.tryParse(firstRide['pickup_longitude']?.toString() ?? '');
+        if (lat != null && lng != null) {
+          startPoint = LatLng(lat, lng);
+        }
+      }
+    }
+
+    if (startPoint == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Cannot retrieve location or active trips.')),
+        );
+      }
+      return;
+    }
+
+    // 2. Gather stops
+    final List<LatLng> pendingPickups = [];
+    final List<LatLng> pendingDropoffs = [];
+
+    for (final ride in _activeDriverRides) {
+      // Ignore simulated bookings to preserve existing simulated logic
+      if (ride['trust_circle_domain'] == 'simulated') continue;
+
+      final status = ride['status']?.toString();
+      final pickupLat = double.tryParse(ride['pickup_latitude']?.toString() ?? '');
+      final pickupLng = double.tryParse(ride['pickup_longitude']?.toString() ?? '');
+      final dropLat = double.tryParse(ride['drop_latitude']?.toString() ?? '');
+      final dropLng = double.tryParse(ride['drop_longitude']?.toString() ?? '');
+
+      if (pickupLat != null && pickupLng != null && (status == 'accepted' || status == 'arrived')) {
+        pendingPickups.add(LatLng(pickupLat, pickupLng));
+      }
+      if (dropLat != null && dropLng != null && (status == 'accepted' || status == 'arrived' || status == 'picked_up')) {
+        pendingDropoffs.add(LatLng(dropLat, dropLng));
+      }
+    }
+
+    if (pendingPickups.isEmpty && pendingDropoffs.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('No active stops to navigate.')),
+        );
+      }
+      return;
+    }
+
+    // 3. Sequence: Pickups first, sorted by distance from startPoint, then Dropoffs.
+    final List<LatLng> stopsSequence = [];
+    LatLng currentRef = startPoint;
+
+    final List<LatLng> sortedPickups = [...pendingPickups];
+    while (sortedPickups.isNotEmpty) {
+      sortedPickups.sort((a, b) => _getDistanceKm(currentRef, a).compareTo(_getDistanceKm(currentRef, b)));
+      final nextPickup = sortedPickups.removeAt(0);
+      stopsSequence.add(nextPickup);
+      currentRef = nextPickup;
+    }
+
+    final List<LatLng> sortedDropoffs = [...pendingDropoffs];
+    while (sortedDropoffs.isNotEmpty) {
+      sortedDropoffs.sort((a, b) => _getDistanceKm(currentRef, a).compareTo(_getDistanceKm(currentRef, b)));
+      final nextDropoff = sortedDropoffs.removeAt(0);
+      stopsSequence.add(nextDropoff);
+      currentRef = nextDropoff;
+    }
+
+    // 4. Construct Google Maps Directions URL
+    final originStr = '${startPoint.latitude},${startPoint.longitude}';
+    final destinationPoint = stopsSequence.last;
+    final destinationStr = '${destinationPoint.latitude},${destinationPoint.longitude}';
+
+    String waypointsStr = '';
+    if (stopsSequence.length > 1) {
+      final intermediate = stopsSequence.sublist(0, stopsSequence.length - 1);
+      waypointsStr = intermediate.map((p) => '${p.latitude},${p.longitude}').join('%7C');
+    }
+
+    var mapsUrl = 'https://www.google.com/maps/dir/?api=1&origin=$originStr&destination=$destinationStr';
+    if (waypointsStr.isNotEmpty) {
+      mapsUrl += '&waypoints=$waypointsStr';
+    }
+    mapsUrl += '&travelmode=driving';
+
+    final uri = Uri.parse(mapsUrl);
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    } else {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not open Google Maps.')),
+        );
+      }
     }
   }
 }

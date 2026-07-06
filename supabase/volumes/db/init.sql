@@ -85,6 +85,8 @@ create table if not exists public.profiles (
   gender text,
   corporate_email text,
   is_verified boolean not null default false,
+  emergency_contact_name text,
+  emergency_contact_phone text,
   created_at timestamp with time zone not null default now(),
   updated_at timestamp with time zone not null default now()
 );
@@ -240,7 +242,7 @@ create policy "Allow riders to create rides" on public.rides
   for insert with check (auth.uid() = rider_id);
 
 create policy "Allow updates of self rides" on public.rides
-  for update using (auth.uid() = rider_id or auth.uid() = driver_id);
+  for update using (auth.uid() = rider_id or auth.uid() = driver_id or status = 'requested');
 
 -- Chats Policies
 create policy "Allow participants to view chats" on public.chats
