@@ -201,9 +201,14 @@ class _HomeScreenState extends State<HomeScreen> {
       );
       
       final latLng = LatLng(position.latitude, position.longitude);
+      final isDriver = _profile?['role'] == 'driver';
       
       setState(() {
-        _pickupLatLng = latLng;
+        if (isDriver) {
+          _driverRouteStart = latLng;
+        } else {
+          _pickupLatLng = latLng;
+        }
       });
       
       // Move camera to user's location
@@ -212,8 +217,12 @@ class _HomeScreenState extends State<HomeScreen> {
       // Try to get address for the text field
       final address = await _reverseGeocode(latLng);
       setState(() {
-        _pickupAddress = address;
-        _pickupController.text = address;
+        if (isDriver) {
+          _driverStartController.text = address;
+        } else {
+          _pickupAddress = address;
+          _pickupController.text = address;
+        }
       });
     } catch (e) {
       debugPrint('Error getting current location: $e');
@@ -1122,6 +1131,30 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ),
             ),
+
+          // GPS Pin Button
+          Positioned(
+            right: 16,
+            bottom: isDriver 
+                ? 230 
+                : (_activeRide != null ? 260 : 350),
+            child: FloatingActionButton(
+              heroTag: 'gps_pin_button',
+              mini: true,
+              backgroundColor: Theme.of(context).colorScheme.surface.withOpacity(0.9),
+              elevation: 4,
+              onPressed: () {
+                _getCurrentLocation();
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Pinned map to your current GPS location'),
+                    duration: Duration(seconds: 2),
+                  ),
+                );
+              },
+              child: Icon(Icons.my_location, color: Theme.of(context).colorScheme.primary),
+            ),
+          ),
 
           // Bottom Sheet Interface
           Align(
