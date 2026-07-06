@@ -1770,16 +1770,17 @@ class _HomeScreenState extends State<HomeScreen> {
                 onChanged: _toggleOnline,
                 activeColor: Colors.white,
                 activeTrackColor: AppTheme.primary,
-                inactiveThumbColor: Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
+                        inactiveThumbColor: Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
                 inactiveTrackColor: Theme.of(context).colorScheme.surfaceContainerHighest,
               ),
             ],
           ),
           const SizedBox(height: 16),
+          // Commute route section — editable when offline, read-only summary when online
+          Text('Commute Route', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Theme.of(context).colorScheme.onSurface)),
+          const SizedBox(height: 8),
           if (!_isOnline) ...[
-            Text('Set Your Commute Route', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Theme.of(context).colorScheme.onSurface)),
-            const SizedBox(height: 8),
-            Text('We will match you with riders along this path.', style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6))),
+            Text('Set your route before going online. Riders along this path will be matched to you.', style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6))),
             const SizedBox(height: 12),
             TextField(
               controller: _driverStartController,
@@ -1814,8 +1815,30 @@ class _HomeScreenState extends State<HomeScreen> {
                 });
               },
             ),
-            const SizedBox(height: 16),
+          ] else ...[
+            // Online: show compact read-only route summary
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                borderRadius: BorderRadius.circular(AppTheme.radiusMd),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.location_on, color: AppTheme.primary, size: 18),
+                  const SizedBox(width: 8),
+                  Expanded(child: Text(_driverStartController.text.isNotEmpty ? _driverStartController.text : 'Not set', style: const TextStyle(fontSize: 13))),
+                  const SizedBox(width: 8),
+                  const Icon(Icons.arrow_forward, size: 16),
+                  const SizedBox(width: 8),
+                  const Icon(Icons.flag, color: AppTheme.accent, size: 18),
+                  const SizedBox(width: 8),
+                  Expanded(child: Text(_driverEndController.text.isNotEmpty ? _driverEndController.text : 'Not set', style: const TextStyle(fontSize: 13))),
+                ],
+              ),
+            ),
           ],
+          const SizedBox(height: 16),
           if (_isOnline) ...[
             if (_incomingRequests.isEmpty)
               Center(
