@@ -93,6 +93,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   // Driver states
   bool _isOnline = false;
+  bool _rideRequestListenerActive = false;
   LatLng? _driverRouteStart;
   LatLng? _driverRouteEnd;
   final TextEditingController _driverStartController = TextEditingController();
@@ -137,7 +138,10 @@ class _HomeScreenState extends State<HomeScreen> {
       });
 
       if (_profile?['role'] == 'driver') {
-        _listenToRideRequests();
+        if (!_rideRequestListenerActive) {
+          _listenToRideRequests();
+          _rideRequestListenerActive = true;
+        }
         _loadActiveDriverRides();
         if (_isOnline) _startGPSDaemon();
       } else {
@@ -2012,12 +2016,8 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _updateCarpoolRoute() async {
-    if (_activeDriverRides.isEmpty) {
-      setState(() {
-        _polylinePoints = [];
-      });
-      return;
-    }
+    // Don't clear existing route while a reload is in progress
+    if (_activeDriverRides.isEmpty) return;
 
     try {
       final firstRide = _activeDriverRides.first;
