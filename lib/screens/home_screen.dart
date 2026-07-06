@@ -842,8 +842,7 @@ class _HomeScreenState extends State<HomeScreen> {
         // Broadcast current route coordinates to riders periodically
         if (_polylinePoints.isNotEmpty) {
           final channel = _supabase.channel('driver-gps-$userId');
-          channel.send(
-            type: RealtimeListenTypes.broadcast,
+          channel.sendBroadcastMessage(
             event: 'route-update',
             payload: {
               'polyline': _polylinePoints.map((p) => [p.latitude, p.longitude]).toList(),
@@ -2050,8 +2049,7 @@ class _HomeScreenState extends State<HomeScreen> {
           final userId = _supabase.auth.currentUser?.id;
           if (userId != null) {
             final channel = _supabase.channel('driver-gps-$userId');
-            channel.send(
-              type: RealtimeListenTypes.broadcast,
+            channel.sendBroadcastMessage(
               event: 'route-update',
               payload: {
                 'polyline': newPoints.map((p) => [p.latitude, p.longitude]).toList(),
