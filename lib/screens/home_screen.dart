@@ -501,21 +501,13 @@ class _HomeScreenState extends State<HomeScreen> {
         _subscribeToRideUpdates(rideRes['id']);
         _simulateDummyDriver(rideRes['id']);
       } else {
-        // Real Book: try to match a real online driver
-        final matchRes = await _supabase.functions.invoke('match-driver', body: {
-          'ride_id': rideRes['id'],
-        });
-
-        if (matchRes.status == 200 && matchRes.data['success'] == true) {
-          _subscribeToRideUpdates(rideRes['id']);
-        } else {
-          if (!mounted) return;
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Request sent — waiting for a nearby driver to accept...')),
-          );
-          _subscribeToRideUpdates(rideRes['id']);
-          // Do NOT auto-simulate for Real Book — wait for a real driver
-        }
+        // Real Book: Do NOT auto-assign using the match-driver edge function.
+        // Wait for a real online driver to manually accept it from their Incoming Requests list.
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Request sent — waiting for a nearby driver to accept...')),
+        );
+        _subscribeToRideUpdates(rideRes['id']);
       }
     } catch (e) {
       if (!mounted) return;
