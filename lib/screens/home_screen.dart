@@ -1886,6 +1886,15 @@ class _HomeScreenState extends State<HomeScreen> {
                           _dropLatLng = entry.value;
                           _dropAddress = entry.key;
                           _dropController.text = entry.key;
+                          if (_pickupLatLng == null) {
+                            final defaultPickupKey = _mockLocations.keys.firstWhere(
+                              (k) => k != entry.key,
+                              orElse: () => _mockLocations.keys.first,
+                            );
+                            _pickupLatLng = _mockLocations[defaultPickupKey];
+                            _pickupAddress = defaultPickupKey;
+                            _pickupController.text = defaultPickupKey;
+                          }
                         });
                         _calculateRoute();
                       },
@@ -2245,6 +2254,56 @@ class _HomeScreenState extends State<HomeScreen> {
           const SizedBox(height: 8),
           if (!_isOnline) ...[
             Text('Set your route before going online. Riders along this path will be matched to you.', style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6))),
+            const SizedBox(height: 12),
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: _mockLocations.entries.map((entry) {
+                  return Padding(
+                    padding: const EdgeInsets.only(right: 8.0),
+                    child: ActionChip(
+                      backgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest,
+                      labelStyle: TextStyle(color: Theme.of(context).colorScheme.onSurface, fontSize: 11),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppTheme.radiusPill)),
+                      side: BorderSide.none,
+                      label: Text('Start: ${entry.key}'),
+                      onPressed: () {
+                        setState(() {
+                          _driverRouteStart = entry.value;
+                          _driverStartController.text = entry.key;
+                          _driverRouteManuallySet = true;
+                        });
+                      },
+                    ),
+                  );
+                }).toList(),
+              ),
+            ),
+            const SizedBox(height: 4),
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: _mockLocations.entries.map((entry) {
+                  return Padding(
+                    padding: const EdgeInsets.only(right: 8.0),
+                    child: ActionChip(
+                      backgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest,
+                      labelStyle: TextStyle(color: Theme.of(context).colorScheme.onSurface, fontSize: 11),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppTheme.radiusPill)),
+                      side: BorderSide.none,
+                      label: Text('End: ${entry.key}'),
+                      onPressed: () {
+                        setState(() {
+                          _driverRouteEnd = entry.value;
+                          _driverEndController.text = entry.key;
+                          _driverRouteManuallySet = true;
+                        });
+                      },
+                    ),
+                  );
+                }).toList(),
+              ),
+            ),
             const SizedBox(height: 12),
             TextField(
               controller: _driverStartController,
