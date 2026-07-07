@@ -2857,14 +2857,17 @@ class _HomeScreenState extends State<HomeScreen> {
     // 1. Get driver current location
     LatLng? startPoint;
     try {
-      final pos = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.high);
+      final pos = await Geolocator.getCurrentPosition(
+          desiredAccuracy: LocationAccuracy.high);
       startPoint = LatLng(pos.latitude, pos.longitude);
     } catch (_) {
       // Fallback: If GPS fails/disabled, use the first ride's pickup location
       if (_activeDriverRides.isNotEmpty) {
         final firstRide = _activeDriverRides.first;
-        final lat = double.tryParse(firstRide['pickup_latitude']?.toString() ?? '');
-        final lng = double.tryParse(firstRide['pickup_longitude']?.toString() ?? '');
+        final lat = double.tryParse(
+            firstRide['pickup_latitude']?.toString() ?? '');
+        final lng = double.tryParse(
+            firstRide['pickup_longitude']?.toString() ?? '');
         if (lat != null && lng != null) {
           startPoint = LatLng(lat, lng);
         }
@@ -2874,7 +2877,8 @@ class _HomeScreenState extends State<HomeScreen> {
     if (startPoint == null) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Cannot retrieve location or active trips.')),
+          const SnackBar(
+              content: Text('Cannot retrieve location or active trips.')),
         );
       }
       return;
@@ -2889,15 +2893,20 @@ class _HomeScreenState extends State<HomeScreen> {
       if (ride['trust_circle_domain'] == 'simulated') continue;
 
       final status = ride['status']?.toString();
-      final pickupLat = double.tryParse(ride['pickup_latitude']?.toString() ?? '');
-      final pickupLng = double.tryParse(ride['pickup_longitude']?.toString() ?? '');
+      final pickupLat = double.tryParse(
+          ride['pickup_latitude']?.toString() ?? '');
+      final pickupLng = double.tryParse(
+          ride['pickup_longitude']?.toString() ?? '');
       final dropLat = double.tryParse(ride['drop_latitude']?.toString() ?? '');
       final dropLng = double.tryParse(ride['drop_longitude']?.toString() ?? '');
 
-      if (pickupLat != null && pickupLng != null && (status == 'accepted' || status == 'arrived')) {
+      if (pickupLat != null && pickupLng != null &&
+          (status == 'accepted' || status == 'arrived')) {
         pendingPickups.add(LatLng(pickupLat, pickupLng));
       }
-      if (dropLat != null && dropLng != null && (status == 'accepted' || status == 'arrived' || status == 'picked_up')) {
+      if (dropLat != null && dropLng != null &&
+          (status == 'accepted' || status == 'arrived' ||
+              status == 'picked_up')) {
         pendingDropoffs.add(LatLng(dropLat, dropLng));
       }
     }
@@ -2917,7 +2926,9 @@ class _HomeScreenState extends State<HomeScreen> {
 
     final List<LatLng> sortedPickups = [...pendingPickups];
     while (sortedPickups.isNotEmpty) {
-      sortedPickups.sort((a, b) => _getDistanceKm(currentRef, a).compareTo(_getDistanceKm(currentRef, b)));
+      sortedPickups.sort((a, b) =>
+          _getDistanceKm(currentRef, a).compareTo(
+              _getDistanceKm(currentRef, b)));
       final nextPickup = sortedPickups.removeAt(0);
       stopsSequence.add(nextPickup);
       currentRef = nextPickup;
@@ -2925,7 +2936,9 @@ class _HomeScreenState extends State<HomeScreen> {
 
     final List<LatLng> sortedDropoffs = [...pendingDropoffs];
     while (sortedDropoffs.isNotEmpty) {
-      sortedDropoffs.sort((a, b) => _getDistanceKm(currentRef, a).compareTo(_getDistanceKm(currentRef, b)));
+      sortedDropoffs.sort((a, b) =>
+          _getDistanceKm(currentRef, a).compareTo(
+              _getDistanceKm(currentRef, b)));
       final nextDropoff = sortedDropoffs.removeAt(0);
       stopsSequence.add(nextDropoff);
       currentRef = nextDropoff;
@@ -2934,12 +2947,14 @@ class _HomeScreenState extends State<HomeScreen> {
     // 4. Construct Google Maps Directions URL
     final originStr = '${startPoint.latitude},${startPoint.longitude}';
     final destinationPoint = stopsSequence.last;
-    final destinationStr = '${destinationPoint.latitude},${destinationPoint.longitude}';
+    final destinationStr = '${destinationPoint.latitude},${destinationPoint
+        .longitude}';
 
     String waypointsStr = '';
     if (stopsSequence.length > 1) {
       final intermediate = stopsSequence.sublist(0, stopsSequence.length - 1);
-      waypointsStr = intermediate.map((p) => '${p.latitude},${p.longitude}').join('%7C');
+      waypointsStr =
+          intermediate.map((p) => '${p.latitude},${p.longitude}').join('%7C');
     }
 
     var mapsUrl = 'https://www.google.com/maps/dir/?api=1&origin=$originStr&destination=$destinationStr';
@@ -2957,6 +2972,7 @@ class _HomeScreenState extends State<HomeScreen> {
           const SnackBar(content: Text('Could not open Google Maps.')),
         );
       }
+    }
   }
 
   Widget _buildBreakdownRow(
